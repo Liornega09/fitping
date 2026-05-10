@@ -2,6 +2,11 @@ import { MetricType, Prisma, WorkoutStatus } from '@prisma/client';
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import { normalizeText } from '../domain/catalog.js';
 import { parseIntent } from '../domain/parser.js';
+import {
+  bestE1RMAcrossLogs,
+  bestE1RMForLog,
+  roundKg
+} from '../domain/pr.js';
 import { prisma } from '../lib/prisma.js';
 import { validateTwilioSignature } from '../lib/twilioSignature.js';
 
@@ -468,6 +473,16 @@ async function processMessage(from: string, message: string): Promise<{ reply: s
         };
       }
 
+      // Fetch prior logs (BEFORE creating the new one) so we can decide if
+      // this entry sets a new estimated 1RM personal record.
+      const priorLogs = await prisma.exerciseLog.findMany({
+        where: { userId: user.id, exerciseId: resolved.exercise.id }
+      });
+      const priorBest = bestE1RMAcrossLogs(
+        priorLogs.map((log) => ({ weight: log.weight, reps: toRepsArray(log.reps) }))
+      );
+      const newBest = bestE1RMForLog(intent.weight, intent.reps);
+
       const volume = intent.weight * intent.reps.reduce((sum, value) => sum + value, 0);
 
       await prisma.exerciseLog.create({
@@ -483,9 +498,18 @@ async function processMessage(from: string, message: string): Promise<{ reply: s
         }
       });
 
-      return {
-        reply: `${resolved.exercise.canonicalName} saved: ${intent.weight}kg — ${intent.reps.length} sets (${intent.reps.join(',')}).`
-      };
+      const baseReply = `${resolved.exercise.canonicalName} saved: ${intent.weight}kg — ${intent.reps.length} sets (${intent.reps.join(',')}).`;
+
+      // Only celebrate a PR if there was prior history AND we actually beat
+      // it. First-ever log of an exercise is not announced (every first set
+      // would trivially "beat" zero, which feels noisy).
+      if (priorLogs.length > 0 && newBest > priorBest) {
+        return {
+          reply: `${baseReply}\nNew 1RM est: ${roundKg(newBest)}kg (was ${roundKg(priorBest)}kg).`
+        };
+      }
+
+      return { reply: baseReply };
     }
 
     if (intent.type === 'invalid_energy') {

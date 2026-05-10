@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import formbody from '@fastify/formbody';
+import { internalJobsRoute } from './routes/internalJobs.js';
 import { whatsappWebhookRoute } from './routes/whatsapp.js';
 
 export async function buildApp() {
@@ -13,6 +14,7 @@ export async function buildApp() {
 
   await app.register(formbody);
   await app.register(whatsappWebhookRoute);
+  await app.register(internalJobsRoute);
 
   app.get('/health', async () => ({ ok: true }));
 

@@ -8,7 +8,8 @@ const schema = z.object({
   PORT: z.coerce.number().default(3000),
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
-  TWILIO_WHATSAPP_NUMBER: z.string().optional()
+  TWILIO_WHATSAPP_NUMBER: z.string().optional(),
+  INTERNAL_JOBS_TOKEN: z.string().optional()
 });
 
 export const config = schema.parse(process.env);

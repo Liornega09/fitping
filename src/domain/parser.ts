@@ -1,6 +1,7 @@
 import { normalizeText } from './catalog.js';
+import { detectLanguage, translateHebrewToCanonical, type Language } from './i18n.js';
 
-export type Intent =
+type IntentBody =
   | { type: 'start'; name: string }
   | { type: 'done' }
   | { type: 'undo' }
@@ -18,14 +19,25 @@ export type Intent =
   | { type: 'invalid_exercise_log' }
   | { type: 'unknown' };
 
+export type Intent = IntentBody & { language: Language };
+
 const numberRegex = /^\d+(\.\d+)?$/;
 const repsRegex = /^\d+(,\d+)*$/;
 
 export function parseIntent(inputRaw: string): Intent {
-  const input = normalizeText(inputRaw)
+  const language = detectLanguage(inputRaw);
+  const preprocessed =
+    language === 'he' ? translateHebrewToCanonical(inputRaw) : inputRaw;
+
+  const input = normalizeText(preprocessed)
     .replace(/[.!?]+$/g, '')
     .replace(/,\s+/g, ',');
 
+  const body = parseEnglish(input);
+  return { ...body, language } as Intent;
+}
+
+function parseEnglish(input: string): IntentBody {
   const startMatch = input.match(/^start\s+(.{1,20})$/);
   if (startMatch) {
     return { type: 'start', name: startMatch[1] };

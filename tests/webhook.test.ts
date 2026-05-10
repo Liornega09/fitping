@@ -320,3 +320,32 @@ describe('whatsapp webhook progressive overload', () => {
     expect(reply).toMatch(/next: 102\.5kg x 5\./i);
   });
 });
+
+describe('whatsapp webhook Hebrew', () => {
+  it('replies in Hebrew when the user sends Hebrew', async () => {
+    expect(await send('התחל A')).toMatch(/התחלתי אימון/);
+  });
+
+  it('parses a Hebrew exercise log and replies in Hebrew', async () => {
+    await send('התחל A');
+    const reply = await send('בנץ 50 8,8,8');
+    expect(reply).toMatch(/bench press נשמר/);
+    expect(reply).toMatch(/8,8,8/);
+  });
+
+  it('Hebrew "סיימתי" closes the workout', async () => {
+    await send('התחל A');
+    await send('בנץ 50 8');
+    const reply = await send('סיימתי');
+    expect(reply).toMatch(/אימון a נשמר/i);
+    expect(reply).toMatch(/סה"כ/);
+  });
+
+  it('Hebrew unknown command falls back to a Hebrew error', async () => {
+    expect(await send('שלום')).toMatch(/לא הצלחתי להבין/);
+  });
+
+  it('English messages still reply in English', async () => {
+    expect(await send('start A')).toMatch(/started workout/i);
+  });
+});

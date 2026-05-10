@@ -91,3 +91,16 @@ model BodyMetric {
   @@index([userId, loggedAt])
   @@index([type, loggedAt])
 }
+
+/// Idempotency log for inbound webhook deliveries (e.g. Twilio retries on the
+/// same MessageSid). When a duplicate arrives we return the cached reply
+/// instead of processing the message twice.
+model ProcessedMessage {
+  id          String   @id @default(cuid())
+  messageSid  String   @unique
+  fromNumber  String
+  replyText   String
+  processedAt DateTime @default(now())
+
+  @@index([processedAt])
+}

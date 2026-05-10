@@ -162,13 +162,59 @@ export async function whatsappWebhookRoute(app: FastifyInstance) {
     const body = request.body;
     const from = body.From;
     const message = body.Body;
+    const messageSid = body.MessageSid;
 
     if (!from || !message) {
       return { reply: 'Missing From or Body in webhook payload.' };
     }
 
-    const user = await getOrCreateUser(from);
-    const intent = parseIntent(message);
+    // Idempotency: Twilio retries the same webhook (same MessageSid) when it
+    // doesn't receive a 200 in time. Return the cached reply so we don't
+    // create duplicate workouts/logs/metrics.
+    if (messageSid) {
+      const cached = await prisma.processedMessage.findUnique({
+        where: { messageSid }
+      });
+      if (cached) {
+        request.log.info({ messageSid }, 'Returning cached reply for duplicate MessageSid');
+        return { reply: cached.replyText };
+      }
+    }
+
+    const result = await processMessage(from, message);
+
+    if (messageSid) {
+      try {
+        await prisma.processedMessage.create({
+          data: {
+            messageSid,
+            fromNumber: from,
+            replyText: result.reply
+          }
+        });
+      } catch (err) {
+        // Concurrent retry won the race — fetch the cached reply and use it
+        // instead of returning a second, potentially divergent response.
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+          const cached = await prisma.processedMessage.findUnique({
+            where: { messageSid }
+          });
+          if (cached) {
+            request.log.info({ messageSid }, 'Race on MessageSid resolved from cache');
+            return { reply: cached.replyText };
+          }
+        }
+        throw err;
+      }
+    }
+
+    return result;
+  });
+}
+
+async function processMessage(from: string, message: string): Promise<{ reply: string }> {
+  const user = await getOrCreateUser(from);
+  const intent = parseIntent(message);
 
     if (intent.type === 'start') {
       const activeWorkout = await getActiveWorkout(user.id);
@@ -461,5 +507,4 @@ export async function whatsappWebhookRoute(app: FastifyInstance) {
     return {
       reply: 'Could not parse message. Example: bench 28 10,10,8'
     };
-  });
 }

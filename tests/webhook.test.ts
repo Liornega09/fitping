@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Prisma } from '@prisma/client';
 
 const userStore = new Map<string, { id: string; whatsappNumber: string }>();
 const workoutStore: any[] = [];
 const exerciseLogStore: any[] = [];
 const bodyMetricStore: any[] = [];
+const processedMessageStore = new Map<string, { id: string; messageSid: string; fromNumber: string; replyText: string; processedAt: number }>();
 const exercises = [
   {
     id: 'ex1',
@@ -111,6 +113,20 @@ vi.mock('../src/lib/prisma.js', () => {
           if (i >= 0) bodyMetricStore.splice(i, 1);
           return {};
         }
+      },
+      processedMessage: {
+        findUnique: async ({ where }: any) => processedMessageStore.get(where.messageSid) ?? null,
+        create: async ({ data }: any) => {
+          if (processedMessageStore.has(data.messageSid)) {
+            throw new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+              code: 'P2002',
+              clientVersion: 'mock'
+            });
+          }
+          const record = { id: newId(), processedAt: Date.now(), ...data };
+          processedMessageStore.set(data.messageSid, record);
+          return record;
+        }
       }
     }
   };
@@ -137,6 +153,7 @@ beforeEach(async () => {
   workoutStore.length = 0;
   exerciseLogStore.length = 0;
   bodyMetricStore.length = 0;
+  processedMessageStore.clear();
   idCounter = 0;
   app = await buildApp();
 });
@@ -193,5 +210,51 @@ describe('whatsapp webhook flow', () => {
 
   it('unknown command', async () => {
     expect(await send('hello there')).toMatch(/could not parse/i);
+  });
+});
+
+async function sendWithSid(body: string, messageSid: string) {
+  const res = await app.inject({
+    method: 'POST',
+    url: '/webhooks/whatsapp?format=json',
+    payload: `From=${encodeURIComponent(FROM)}&Body=${encodeURIComponent(body)}&MessageSid=${encodeURIComponent(messageSid)}`,
+    headers: { 'content-type': 'application/x-www-form-urlencoded' }
+  });
+  expect(res.statusCode).toBe(200);
+  return JSON.parse(res.payload).reply as string;
+}
+
+describe('whatsapp webhook idempotency (MessageSid)', () => {
+  it('returns the cached reply on duplicate MessageSid without re-processing', async () => {
+    const sid = 'SM_test_duplicate_001';
+
+    const first = await sendWithSid('start A', sid);
+    expect(first).toMatch(/started workout a/i);
+    expect(workoutStore).toHaveLength(1);
+
+    // Same MessageSid → must NOT create a second workout, must return same reply.
+    const second = await sendWithSid('start A', sid);
+    expect(second).toBe(first);
+    expect(workoutStore).toHaveLength(1);
+  });
+
+  it('different MessageSid for the same body is processed independently', async () => {
+    await sendWithSid('start A', 'SM_first');
+    // Second start with different sid → real handler runs and replies "already active".
+    const reply = await sendWithSid('start B', 'SM_second');
+    expect(reply).toMatch(/already active/i);
+    // Both messages are recorded as processed.
+    expect(processedMessageStore.size).toBe(2);
+  });
+
+  it('messages without MessageSid skip the idempotency cache', async () => {
+    const a = await send('start A');
+    expect(a).toMatch(/started workout a/i);
+    expect(processedMessageStore.size).toBe(0);
+
+    // Same body again — no sid means no caching, so handler runs and reports active.
+    const b = await send('start A');
+    expect(b).toMatch(/already active/i);
+    expect(processedMessageStore.size).toBe(0);
   });
 });

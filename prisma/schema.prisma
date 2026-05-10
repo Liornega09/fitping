@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WorkoutStatus {
+  ACTIVE
+  DONE
+}
+
+enum MetricType {
+  WEIGHT
+  SLEEP
+  ENERGY
+  PAIN
+}
+
+model User {
+  id             String       @id @default(cuid())
+  whatsappNumber String       @unique
+  timezone       String       @default("UTC")
+  createdAt      DateTime     @default(now())
+  workouts       Workout[]
+  exerciseLogs   ExerciseLog[]
+  bodyMetrics    BodyMetric[]
+}
+
+model Workout {
+  id                String        @id @default(cuid())
+  userId            String
+  name              String
+  startedAt         DateTime      @default(now())
+  finishedAt        DateTime?
+  status            WorkoutStatus @default(ACTIVE)
+  notes             String?
+  totalSets         Int?
+  setsPerMuscleJson Json?
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseLogs      ExerciseLog[]
+
+  @@index([userId, status])
+  @@index([startedAt])
+}
+
+model Exercise {
+  id                 String        @id @default(cuid())
+  canonicalName      String        @unique
+  primaryMuscle      String
+  secondaryMuscles   Json
+  aliases            Json
+  isActive           Boolean       @default(true)
+  exerciseLogs       ExerciseLog[]
+}
+
+model ExerciseLog {
+  id        String   @id @default(cuid())
+  userId    String
+  workoutId String
+  exerciseId String
+  rawAlias  String
+  weight    Float
+  reps      Json
+  setsCount Int
+  volume    Float
+  loggedAt  DateTime @default(now())
+  notes     String?
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout   Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise  Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  @@index([userId, loggedAt])
+  @@index([exerciseId, loggedAt])
+}
+
+model BodyMetric {
+  id        String    @id @default(cuid())
+  userId    String
+  type      MetricType
+  valueNum  Float?
+  valueText String?
+  painScore Int?
+  loggedAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, loggedAt])
+  @@index([type, loggedAt])
+}

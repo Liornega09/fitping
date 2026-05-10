@@ -1,0 +1,5 @@
+- Keep the WhatsApp UX minimal and text-first.
+- Prioritize short confirmations and only ask clarification when parsing is ambiguous.
+- Use primary muscle only for weekly set aggregation in MVP.
+- Preserve aliases and canonical exercise names in storage for dashboard-ready analytics.
+- Keep command handling deterministic: parse in fixed priority order.

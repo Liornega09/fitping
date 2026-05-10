@@ -20,13 +20,14 @@ enum MetricType {
 }
 
 model User {
-  id             String       @id @default(cuid())
-  whatsappNumber String       @unique
-  timezone       String       @default("UTC")
-  createdAt      DateTime     @default(now())
-  workouts       Workout[]
-  exerciseLogs   ExerciseLog[]
-  bodyMetrics    BodyMetric[]
+  id              String        @id @default(cuid())
+  whatsappNumber  String        @unique
+  timezone        String        @default("UTC")
+  createdAt       DateTime      @default(now())
+  lastNudgeSentAt DateTime?
+  workouts        Workout[]
+  exerciseLogs    ExerciseLog[]
+  bodyMetrics     BodyMetric[]
 }
 
 model Workout {

@@ -64,8 +64,20 @@ Invoke-RestMethod -Method Post -Uri 'http://localhost:3000/webhooks/whatsapp?for
 5. Send the sandbox join code from WhatsApp.
 6. Test: `start A`, `bench 28 10,10,8`, `done`.
 
-## Weekly auto-summary cron
-Every Monday morning, FitPing can send each user a recap of the previous
+## LLM fallback (optional)
+When the regex parser cannot understand a message, FitPing optionally asks
+OpenAI's `gpt-4o-mini` to translate the message into a structured intent.
+The deterministic handlers still execute the action — the model only does
+classification, never side effects or replies.
+
+Enable by setting:
+- `OPENAI_API_KEY` (required)
+- `OPENAI_MODEL` (optional, defaults to `gpt-4o-mini`)
+
+If the key is unset the LLM path is silently skipped and the user sees the
+existing "could not parse" message.
+
+## Weekly auto-summary cronEvery Monday morning, FitPing can send each user a recap of the previous
 week (workouts, sets per muscle, top PR).
 
 Trigger via the protected internal endpoint:

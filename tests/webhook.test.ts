@@ -291,3 +291,32 @@ describe('whatsapp webhook PR detection', () => {
     expect(squat).not.toMatch(/1RM/i);
   });
 });
+
+describe('whatsapp webhook progressive overload', () => {
+  it('does not nudge on the first-ever log of an exercise', async () => {
+    await send('start A');
+    const reply = await send('bench 50 8,8,8');
+    expect(reply).not.toMatch(/next:/i);
+  });
+
+  it('suggests +1 rep at the same weight in the hypertrophy range', async () => {
+    await send('start A');
+    await send('bench 50 8,8,8');           // baseline
+    const reply = await send('bench 50 8,7,7'); // top set 8 → suggest 9
+    expect(reply).toMatch(/next: 50kg x 9\./i);
+  });
+
+  it('adds load and drops reps to 8 when every set hit double digits', async () => {
+    await send('start A');
+    await send('bench 40 12');              // baseline
+    const reply = await send('bench 40 12,11,10'); // min >= 10 → +2.5kg, 8 reps
+    expect(reply).toMatch(/next: 42\.5kg x 8\./i);
+  });
+
+  it('adds load and keeps reps in the strength range', async () => {
+    await send('start A');
+    await send('bench 100 5');              // baseline
+    const reply = await send('bench 100 5,5,4'); // top set 5 → +2.5kg, 5 reps
+    expect(reply).toMatch(/next: 102\.5kg x 5\./i);
+  });
+});

@@ -1,6 +1,5 @@
 import { MetricType, Prisma, WorkoutStatus } from '@prisma/client';
 import { FastifyInstance, FastifyRequest } from 'fastify';
-import { config } from '../config.js';
 import { normalizeText } from '../domain/catalog.js';
 import { parseIntent } from '../domain/parser.js';
 import { prisma } from '../lib/prisma.js';
@@ -105,7 +104,10 @@ export async function whatsappWebhookRoute(app: FastifyInstance) {
       return;
     }
 
-    const authToken = config.TWILIO_AUTH_TOKEN;
+    // Read directly from process.env (instead of the validated config) so this
+    // module doesn't pull in DATABASE_URL validation in environments that only
+    // exercise the HTTP layer (e.g. CI test runs).
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
     if (!authToken) {
       // No token configured — skip verification (dev/test). Warn so this is
       // visible in production logs if someone forgets to set it.

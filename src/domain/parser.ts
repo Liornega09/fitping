@@ -17,6 +17,7 @@ type IntentBody =
   | { type: 'invalid_metric'; metric: 'weight' | 'sleep' }
   | { type: 'invalid_pain' }
   | { type: 'invalid_exercise_log' }
+  | { type: 'help' }
   | { type: 'unknown' };
 
 export type Intent = IntentBody & { language: Language };
@@ -45,6 +46,10 @@ function parseEnglish(input: string): IntentBody {
 
   if (input === 'done') {
     return { type: 'done' };
+  }
+
+  if (input === 'help' || input === 'עזרה') {
+    return { type: 'help' };
   }
 
   if (input === 'undo') {

@@ -27,6 +27,7 @@ export function detectLanguage(text: string): Language {
  */
 const HEBREW_LEXICON: Record<string, string> = {
   // commands
+  'עזרה': 'help',
   'התחל': 'start',
   'התחלה': 'start',
   'תתחיל': 'start',

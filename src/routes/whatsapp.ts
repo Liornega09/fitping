@@ -9,6 +9,7 @@ import {
 } from '../domain/pr.js';
 import { formatSuggestion, suggestNextTarget } from '../domain/overload.js';
 import { replies } from '../domain/replies.js';
+import { llmClassifierFromEnv, type LLMIntentClassifier } from '../lib/llm.js';
 import { prisma } from '../lib/prisma.js';
 import { validateTwilioSignature } from '../lib/twilioSignature.js';
 
@@ -105,7 +106,21 @@ function toTwiml(message: string) {
 
 type WebhookReply = { reply: string };
 
-export async function whatsappWebhookRoute(app: FastifyInstance) {
+export type WhatsappRouteOptions = {
+  /**
+   * Optional LLM-based intent classifier used as a fallback when the
+   * deterministic regex parser returns 'unknown'. Pass `null` (or omit)
+   * to disable the LLM path entirely. Tests inject a fake classifier;
+   * production reads OPENAI_API_KEY via llmClassifierFromEnv().
+   */
+  llmClassifier?: LLMIntentClassifier | null;
+};
+
+export async function whatsappWebhookRoute(
+  app: FastifyInstance,
+  opts: WhatsappRouteOptions = {}
+) {
+  const llm = opts.llmClassifier === undefined ? llmClassifierFromEnv() : opts.llmClassifier;
   app.addHook('preHandler', async (request, reply) => {
     if (request.method !== 'POST' || !request.url.startsWith('/webhooks/whatsapp')) {
       return;
@@ -190,7 +205,7 @@ export async function whatsappWebhookRoute(app: FastifyInstance) {
       }
     }
 
-    const result = await processMessage(from, message);
+    const result = await processMessage(from, message, llm);
 
     if (messageSid) {
       try {
@@ -221,9 +236,26 @@ export async function whatsappWebhookRoute(app: FastifyInstance) {
   });
 }
 
-async function processMessage(from: string, message: string): Promise<{ reply: string }> {
+async function processMessage(
+  from: string,
+  message: string,
+  llm: LLMIntentClassifier | null
+): Promise<{ reply: string }> {
   const user = await getOrCreateUser(from);
-  const intent = parseIntent(message);
+  let intent = parseIntent(message);
+
+  // LLM fallback: when our regex parser couldn't make sense of the message,
+  // ask the model for a structured Intent and re-dispatch. We deliberately
+  // do NOT consult the LLM for 'invalid_*' results — those mean the user
+  // typed a recognizable command shape with bad arguments, and we want the
+  // existing helpful error message instead of a model guess.
+  if (intent.type === 'unknown' && llm) {
+    const llmIntent = await llm.classify(message, intent.language);
+    if (llmIntent && llmIntent.type !== 'unknown') {
+      intent = llmIntent;
+    }
+  }
+
   const t = replies(intent.language);
 
     if (intent.type === 'start') {

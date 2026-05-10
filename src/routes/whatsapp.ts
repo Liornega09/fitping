@@ -98,16 +98,32 @@ function toTwiml(message: string) {
 type WebhookReply = { reply: string };
 
 export async function whatsappWebhookRoute(app: FastifyInstance) {
-  app.addHook('preSerialization', async (request, reply, payload) => {
-    const query = request.query as { format?: string };
-    const webhookReply = payload as Partial<WebhookReply>;
-
-    if (request.url.startsWith('/webhooks/whatsapp') && webhookReply.reply && query.format !== 'json') {
-      reply.header('Content-Type', 'text/xml');
-      return toTwiml(webhookReply.reply);
+  app.addHook('onSend', async (request, reply, payload) => {
+    if (!request.url.startsWith('/webhooks/whatsapp')) {
+      return payload;
     }
 
-    return payload;
+    const query = request.query as { format?: string };
+    if (query.format === 'json') {
+      return payload;
+    }
+
+    let reply_text: string | undefined;
+    if (typeof payload === 'string') {
+      try {
+        const parsed = JSON.parse(payload) as Partial<WebhookReply>;
+        reply_text = parsed.reply;
+      } catch {
+        reply_text = undefined;
+      }
+    }
+
+    if (!reply_text) {
+      return payload;
+    }
+
+    reply.header('Content-Type', 'text/xml');
+    return toTwiml(reply_text);
   });
 
   app.post('/webhooks/whatsapp', async (request: FastifyRequest<{ Body: Record<string, string | undefined> }>) => {

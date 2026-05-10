@@ -36,9 +36,11 @@ export type ReplyKey =
   | 'invalid_exercise_log'
   | 'could_not_parse'
   | 'missing_payload'
-  | 'total_sets';
+  | 'total_sets'
+  | 'help';
 
 type RepliesEN = {
+  help: () => string;
   started_workout: (name: string) => string;
   workout_already_active: (name: string) => string;
   no_active_workout: () => string;
@@ -73,6 +75,31 @@ type RepliesEN = {
 const formatKg = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 const en: RepliesEN = {
+  help: () =>
+    [
+      'FitPing commands:',
+      '',
+      'Workout',
+      '  start <name>         – open a new session',
+      '  done                 – close & summarize',
+      '  undo                 – remove last entry',
+      '',
+      'Logging',
+      '  <exercise> <kg> <reps[,reps...]>',
+      '  e.g. bench 60 5,5,4',
+      '',
+      'Tracking',
+      '  summary today / week',
+      '  progress <exercise>',
+      '',
+      'Body metrics',
+      '  weight <kg>  sleep <h>  energy <1-10>',
+      '  pain <note> <score>/10',
+      '',
+      'Exercises: bench, squat, row, pulldown,',
+      '  incline bench, flys, shoulder press,',
+      '  lateral raises, curl, pushdown, and more.',
+    ].join('\n'),
   started_workout: (name) => `Started workout ${name}.`,
   workout_already_active: (name) => `Workout ${name} is already active. Send done first.`,
   no_active_workout: () => 'No active workout. Send: start A',
@@ -109,6 +136,31 @@ const en: RepliesEN = {
 };
 
 const he: RepliesEN = {
+  help: () =>
+    [
+      'פקודות FitPing:',
+      '',
+      'אימון',
+      '  התחל <שם>             – פתיחת סשן חדש',
+      '  סיימתי                – סגירה וסיכום',
+      '  בטל                   – ביטול הרישום האחרון',
+      '',
+      'רישום תרגיל',
+      '  <תרגיל> <ק"ג> <חזרות[,חזרות...]>',
+      '  לדוגמה: בנץ 60 5,5,4',
+      '',
+      'מעקב',
+      '  סיכום היום / שבוע',
+      '  התקדמות <תרגיל>',
+      '',
+      'מדדי גוף',
+      '  משקל <ק"ג>  שינה <שעות>  אנרגיה <1-10>',
+      '  כאב <תיאור> <ציון>/10',
+      '',
+      'תרגילים: בנץ, סקוואט, חתירה, פולי,',
+      '  משופע, פרפר, כתפיים,',
+      '  הרחקות, קרל, פושדאון ועוד.',
+    ].join('\n'),
   started_workout: (name) => `התחלתי אימון ${name}.`,
   workout_already_active: (name) => `אימון ${name} כבר פעיל. שלח/י קודם "סיימתי".`,
   no_active_workout: () => 'אין אימון פעיל. שלח/י: התחל A',

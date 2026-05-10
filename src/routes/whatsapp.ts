@@ -558,6 +558,10 @@ async function processMessage(
       return { reply: t.invalid_energy() };
     }
 
+    if (intent.type === 'help') {
+      return { reply: t.help() };
+    }
+
     if (intent.type === 'invalid_metric') {
       return { reply: t.invalid_metric(intent.metric) };
     }

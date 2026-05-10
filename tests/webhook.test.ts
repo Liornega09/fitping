@@ -258,3 +258,36 @@ describe('whatsapp webhook idempotency (MessageSid)', () => {
     expect(processedMessageStore.size).toBe(0);
   });
 });
+
+describe('whatsapp webhook PR detection', () => {
+  it('does not announce a PR on the first-ever log of an exercise', async () => {
+    await send('start A');
+    const reply = await send('bench 50 8,8,8');
+    expect(reply).toMatch(/bench press saved/i);
+    expect(reply).not.toMatch(/1RM/i);
+  });
+
+  it('announces a new estimated 1RM when the user beats their best', async () => {
+    await send('start A');
+    await send('bench 50 8,8,8'); // e1RM ≈ 63.3
+    const reply = await send('bench 60 5,5'); // e1RM = 70 → PR
+    expect(reply).toMatch(/bench press saved/i);
+    expect(reply).toMatch(/new 1rm est: 70kg \(was 63\.3kg\)/i);
+  });
+
+  it('does NOT announce when the new entry is weaker than history', async () => {
+    await send('start A');
+    await send('bench 60 5,5'); // e1RM = 70
+    const reply = await send('bench 50 8,8'); // e1RM ≈ 63.3 → no PR
+    expect(reply).toMatch(/bench press saved/i);
+    expect(reply).not.toMatch(/1RM/i);
+  });
+
+  it('PRs are tracked per exercise (heavy bench does not block first squat)', async () => {
+    await send('start A');
+    await send('bench 100 5');
+    const squat = await send('squat 60 5');
+    // First squat ever → no PR line, even though bench is heavy.
+    expect(squat).not.toMatch(/1RM/i);
+  });
+});

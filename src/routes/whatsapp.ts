@@ -3,6 +3,7 @@ import { FastifyInstance, FastifyRequest } from 'fastify';
 import { normalizeText } from '../domain/catalog.js';
 import { parseIntent } from '../domain/parser.js';
 import { prisma } from '../lib/prisma.js';
+import { validateTwilioSignature } from '../lib/twilioSignature.js';
 
 function startOfToday() {
   const now = new Date();
@@ -98,6 +99,37 @@ function toTwiml(message: string) {
 type WebhookReply = { reply: string };
 
 export async function whatsappWebhookRoute(app: FastifyInstance) {
+  app.addHook('preHandler', async (request, reply) => {
+    if (request.method !== 'POST' || !request.url.startsWith('/webhooks/whatsapp')) {
+      return;
+    }
+
+    // Read directly from process.env (instead of the validated config) so this
+    // module doesn't pull in DATABASE_URL validation in environments that only
+    // exercise the HTTP layer (e.g. CI test runs).
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    if (!authToken) {
+      // No token configured — skip verification (dev/test). Warn so this is
+      // visible in production logs if someone forgets to set it.
+      request.log.warn(
+        'TWILIO_AUTH_TOKEN is not set — skipping Twilio signature verification'
+      );
+      return;
+    }
+
+    const headerValue = request.headers['x-twilio-signature'];
+    const signature = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+
+    const url = `${request.protocol}://${request.hostname}${request.url}`;
+    const params = (request.body ?? {}) as Record<string, string | undefined>;
+
+    if (!validateTwilioSignature(authToken, signature, url, params)) {
+      request.log.warn({ url }, 'Rejected request with invalid Twilio signature');
+      reply.code(403);
+      return reply.send({ error: 'Invalid Twilio signature' });
+    }
+  });
+
   app.addHook('onSend', async (request, reply, payload) => {
     if (!request.url.startsWith('/webhooks/whatsapp')) {
       return payload;

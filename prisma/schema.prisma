@@ -104,3 +104,16 @@ model ProcessedMessage {
 
   @@index([processedAt])
 }
+
+/// Audit + idempotency record for outbound weekly summaries. The
+/// (userId, weekStart) pair is unique so a cron retry won't double-send.
+model WeeklySummary {
+  id        String   @id @default(cuid())
+  userId    String
+  weekStart DateTime // Monday 00:00 UTC of the summarized week
+  body      String
+  sentAt    DateTime @default(now())
+
+  @@unique([userId, weekStart])
+  @@index([sentAt])
+}

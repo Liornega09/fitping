@@ -63,3 +63,37 @@ Invoke-RestMethod -Method Post -Uri 'http://localhost:3000/webhooks/whatsapp?for
 4. Set the sandbox inbound webhook URL to `https://YOUR-NGROK-DOMAIN/webhooks/whatsapp`.
 5. Send the sandbox join code from WhatsApp.
 6. Test: `start A`, `bench 28 10,10,8`, `done`.
+
+## Weekly auto-summary cron
+Every Monday morning, FitPing can send each user a recap of the previous
+week (workouts, sets per muscle, top PR).
+
+Trigger via the protected internal endpoint:
+
+```
+POST /internal/jobs/weekly-summary
+Authorization: Bearer <INTERNAL_JOBS_TOKEN>
+```
+
+The endpoint:
+- requires `INTERNAL_JOBS_TOKEN` to be set (returns 503 otherwise)
+- requires `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_NUMBER`
+  to send WhatsApp messages (otherwise summaries are computed but skipped)
+- is idempotent on `(userId, weekStart)` — safe to retry
+
+Schedule it from any external cron (Render Cron Job, GitHub Actions, etc.):
+
+```yaml
+# .github/workflows/weekly-summary.yml
+on:
+  schedule:
+    - cron: '0 8 * * 1'   # every Monday 08:00 UTC
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -fsS -X POST \
+            -H "Authorization: Bearer ${{ secrets.INTERNAL_JOBS_TOKEN }}" \
+            ${{ secrets.FITPING_BASE_URL }}/internal/jobs/weekly-summary
+```

@@ -8,6 +8,7 @@ import {
   roundKg
 } from '../domain/pr.js';
 import { formatSuggestion, suggestNextTarget } from '../domain/overload.js';
+import { replies } from '../domain/replies.js';
 import { prisma } from '../lib/prisma.js';
 import { validateTwilioSignature } from '../lib/twilioSignature.js';
 
@@ -171,7 +172,9 @@ export async function whatsappWebhookRoute(app: FastifyInstance) {
     const messageSid = body.MessageSid;
 
     if (!from || !message) {
-      return { reply: 'Missing From or Body in webhook payload.' };
+      // Use English by default — we don't have an intent yet to know the
+      // user's language for this corrupt payload.
+      return { reply: replies('en').missing_payload() };
     }
 
     // Idempotency: Twilio retries the same webhook (same MessageSid) when it
@@ -221,11 +224,12 @@ export async function whatsappWebhookRoute(app: FastifyInstance) {
 async function processMessage(from: string, message: string): Promise<{ reply: string }> {
   const user = await getOrCreateUser(from);
   const intent = parseIntent(message);
+  const t = replies(intent.language);
 
     if (intent.type === 'start') {
       const activeWorkout = await getActiveWorkout(user.id);
       if (activeWorkout) {
-        return { reply: `Workout ${activeWorkout.name} is already active. Send done first.` };
+        return { reply: t.workout_already_active(activeWorkout.name) };
       }
 
       const workout = await prisma.workout.create({
@@ -236,13 +240,13 @@ async function processMessage(from: string, message: string): Promise<{ reply: s
         }
       });
 
-      return { reply: `Started workout ${workout.name}.` };
+      return { reply: t.started_workout(workout.name) };
     }
 
     if (intent.type === 'done') {
       const activeWorkout = await getActiveWorkout(user.id);
       if (!activeWorkout) {
-        return { reply: 'No active workout. Send: start A' };
+        return { reply: t.no_active_workout() };
       }
 
       const logs = await prisma.exerciseLog.findMany({
@@ -260,7 +264,7 @@ async function processMessage(from: string, message: string): Promise<{ reply: s
             setsPerMuscleJson: {}
           }
         });
-        return { reply: `Workout ${activeWorkout.name} saved. No exercises logged.` };
+        return { reply: t.workout_saved_empty(activeWorkout.name) };
       }
 
       const setsPerMuscle: Record<string, number> = {};
@@ -298,10 +302,10 @@ async function processMessage(from: string, message: string): Promise<{ reply: s
       );
 
       const lines = [
-        `Workout ${activeWorkout.name} saved.`,
+        t.workout_saved_header(activeWorkout.name),
         ...ranked.map((item) => `${item.muscle}: ${item.sets} sets`),
-        `Total: ${totalSets} sets`,
-        `Top lift: ${topLiftLabel}`
+        t.total_sets(totalSets),
+        t.top_lift(topLiftLabel)
       ];
 
       return { reply: lines.join('\n') };
@@ -321,17 +325,17 @@ async function processMessage(from: string, message: string): Promise<{ reply: s
       ]);
 
       if (!lastLog && !lastMetric) {
-        return { reply: 'Nothing to undo.' };
+        return { reply: t.nothing_to_undo() };
       }
 
       if (lastMetric && (!lastLog || lastMetric.loggedAt > lastLog.loggedAt)) {
         await prisma.bodyMetric.delete({ where: { id: lastMetric.id } });
-        return { reply: `${formatMetricType(lastMetric.type)} removed.` };
+        return { reply: t.metric_removed(formatMetricType(lastMetric.type)) };
       }
 
       if (lastLog) {
         await prisma.exerciseLog.delete({ where: { id: lastLog.id } });
-        return { reply: `${lastLog.exercise.canonicalName} removed.` };
+        return { reply: t.exercise_removed(lastLog.exercise.canonicalName) };
       }
     }
 
@@ -346,7 +350,7 @@ async function processMessage(from: string, message: string): Promise<{ reply: s
       });
 
       if (logs.length === 0) {
-        return { reply: 'No workout logs today.' };
+        return { reply: t.no_logs_today() };
       }
 
       const byMuscle: Record<string, number> = {};
@@ -359,7 +363,7 @@ async function processMessage(from: string, message: string): Promise<{ reply: s
       const ranked = rankSetsByMuscle(
         Object.entries(byMuscle).map(([muscle, sets]) => ({ muscle, sets }))
       );
-      const lines = ['Today summary:', ...ranked.map((item) => `${item.muscle}: ${item.sets}`), `Total sets: ${totalSets}`];
+      const lines = [t.today_summary_header(), ...ranked.map((item) => `${item.muscle}: ${item.sets}`), t.total_sets(totalSets)];
       return { reply: lines.join('\n') };
     }
 
@@ -375,7 +379,7 @@ async function processMessage(from: string, message: string): Promise<{ reply: s
       });
 
       if (logs.length === 0) {
-        return { reply: 'No logs this week yet.' };
+        return { reply: t.no_logs_week() };
       }
 
       const byMuscle: Record<string, number> = {};
@@ -388,7 +392,7 @@ async function processMessage(from: string, message: string): Promise<{ reply: s
       const ranked = rankSetsByMuscle(
         Object.entries(byMuscle).map(([muscle, sets]) => ({ muscle, sets }))
       );
-      const lines = ['Week summary:', ...ranked.map((item) => `${item.muscle}: ${item.sets}`), `Total sets: ${totalSets}`];
+      const lines = [t.week_summary_header(), ...ranked.map((item) => `${item.muscle}: ${item.sets}`), t.total_sets(totalSets)];
       return { reply: lines.join('\n') };
     }
 
@@ -396,9 +400,9 @@ async function processMessage(from: string, message: string): Promise<{ reply: s
       const resolved = await resolveExercise(intent.exerciseAlias);
       if (!resolved.exercise) {
         if (resolved.suggestion) {
-          return { reply: `I don't know "${intent.exerciseAlias}". Did you mean "${resolved.suggestion}"?` };
+          return { reply: t.unknown_exercise_with_suggestion(intent.exerciseAlias, resolved.suggestion) };
         }
-        return { reply: `I don't know "${intent.exerciseAlias}".` };
+        return { reply: t.unknown_exercise_with_suggestion(intent.exerciseAlias, intent.exerciseAlias) };
       }
 
       const logs = await prisma.exerciseLog.findMany({
@@ -411,10 +415,10 @@ async function processMessage(from: string, message: string): Promise<{ reply: s
       });
 
       if (logs.length === 0) {
-        return { reply: `No logs yet for ${resolved.exercise.canonicalName}.` };
+        return { reply: t.no_logs_for_exercise(resolved.exercise.canonicalName) };
       }
 
-      const lines = [`Progress ${resolved.exercise.canonicalName}:`];
+      const lines = [t.progress_header(resolved.exercise.canonicalName)];
       for (const log of logs) {
         const reps = toRepsArray(log.reps);
         const bestReps = reps.length ? Math.max(...reps) : 0;
@@ -441,7 +445,7 @@ async function processMessage(from: string, message: string): Promise<{ reply: s
         }
       });
 
-      return { reply: `${intent.type} saved: ${intent.value}` };
+      return { reply: t.metric_saved(intent.type, intent.value) };
     }
 
     if (intent.type === 'pain') {
@@ -454,24 +458,21 @@ async function processMessage(from: string, message: string): Promise<{ reply: s
         }
       });
 
-      return { reply: `Pain saved: ${intent.note} ${intent.score}/10` };
+      return { reply: t.pain_saved(intent.note, intent.score) };
     }
 
     if (intent.type === 'exercise_log') {
       const activeWorkout = await getActiveWorkout(user.id);
       if (!activeWorkout) {
-        return { reply: 'No active workout. Send: start A' };
+        return { reply: t.no_active_workout() };
       }
 
       const resolved = await resolveExercise(intent.alias);
       if (!resolved.exercise) {
         if (resolved.suggestion) {
-          return { reply: `I don't know "${intent.alias}". Did you mean "${resolved.suggestion}"?` };
+          return { reply: t.unknown_exercise_with_suggestion(intent.alias, resolved.suggestion) };
         }
-        return {
-          reply:
-            'Unknown exercise alias. Try: bench, incline bench, flys, lateral raises, shoulder press, pulldown, row, squat.'
-        };
+        return { reply: t.unknown_exercise_generic() };
       }
 
       // Fetch prior logs (BEFORE creating the new one) so we can decide if
@@ -499,15 +500,13 @@ async function processMessage(from: string, message: string): Promise<{ reply: s
         }
       });
 
-      const baseReply = `${resolved.exercise.canonicalName} saved: ${intent.weight}kg — ${intent.reps.length} sets (${intent.reps.join(',')}).`;
-
-      const lines = [baseReply];
+      const lines = [t.exercise_saved(resolved.exercise.canonicalName, intent.weight, intent.reps)];
 
       // Only celebrate a PR if there was prior history AND we actually beat
       // it. First-ever log of an exercise is not announced (every first set
       // would trivially "beat" zero, which feels noisy).
       if (priorLogs.length > 0 && newBest > priorBest) {
-        lines.push(`New 1RM est: ${roundKg(newBest)}kg (was ${roundKg(priorBest)}kg).`);
+        lines.push(t.new_pr(roundKg(newBest), roundKg(priorBest)));
       }
 
       // Progressive-overload nudge — only after the user has at least one
@@ -516,7 +515,7 @@ async function processMessage(from: string, message: string): Promise<{ reply: s
       if (priorLogs.length > 0) {
         const suggestion = suggestNextTarget({ weight: intent.weight, reps: intent.reps });
         if (suggestion) {
-          lines.push(formatSuggestion(suggestion));
+          lines.push(t.next_target(suggestion.weight, suggestion.reps));
         }
       }
 
@@ -524,22 +523,20 @@ async function processMessage(from: string, message: string): Promise<{ reply: s
     }
 
     if (intent.type === 'invalid_energy') {
-      return { reply: 'Energy must be 1-10. Example: energy 7' };
+      return { reply: t.invalid_energy() };
     }
 
     if (intent.type === 'invalid_metric') {
-      return { reply: `Use: ${intent.metric} <number>. Example: ${intent.metric} ${intent.metric === 'sleep' ? '6.5' : '92.4'}` };
+      return { reply: t.invalid_metric(intent.metric) };
     }
 
     if (intent.type === 'invalid_pain') {
-      return { reply: 'Use: pain <note> <score>/10. Example: pain right shoulder 3/10' };
+      return { reply: t.invalid_pain() };
     }
 
     if (intent.type === 'invalid_exercise_log') {
-      return { reply: 'Use: <exercise> <weight> <reps>. Example: bench 28 10,10,8' };
+      return { reply: t.invalid_exercise_log() };
     }
 
-    return {
-      reply: 'Could not parse message. Example: bench 28 10,10,8'
-    };
+    return { reply: t.could_not_parse() };
 }

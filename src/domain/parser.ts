@@ -22,7 +22,9 @@ const numberRegex = /^\d+(\.\d+)?$/;
 const repsRegex = /^\d+(,\d+)*$/;
 
 export function parseIntent(inputRaw: string): Intent {
-  const input = normalizeText(inputRaw).replace(/,\s+/g, ',');
+  const input = normalizeText(inputRaw)
+    .replace(/[.!?]+$/g, '')
+    .replace(/,\s+/g, ',');
 
   const startMatch = input.match(/^start\s+(.{1,20})$/);
   if (startMatch) {
@@ -37,11 +39,11 @@ export function parseIntent(inputRaw: string): Intent {
     return { type: 'undo' };
   }
 
-  if (input === 'summary today') {
+  if (/^(summary|summery|sumary)(\s+today)?$/.test(input) || input === 'today') {
     return { type: 'summary_today' };
   }
 
-  if (input === 'summary week') {
+  if (/^(summary|summery|sumary)\s+week$/.test(input) || input === 'week') {
     return { type: 'summary_week' };
   }
 

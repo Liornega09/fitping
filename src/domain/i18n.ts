@@ -30,6 +30,7 @@ const HEBREW_LEXICON: Record<string, string> = {
   'עזרה': 'help',
   'הצע': 'suggest',
   'המלצה': 'suggest',
+  'נפח': 'volume',
   'התחל': 'start',
   'התחלה': 'start',
   'תתחיל': 'start',

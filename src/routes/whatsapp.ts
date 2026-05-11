@@ -11,6 +11,7 @@ import { formatSuggestion, suggestNextTarget } from '../domain/overload.js';
 import { suggestWorkout, formatSuggestion as formatWorkoutSuggestion, type RecentLogEntry } from '../domain/suggest.js';
 import { EXERCISE_SEEDS } from '../domain/catalog.js';
 import { detectPlateau, formatPlateauWarning } from '../domain/plateau.js';
+import { buildVolumeHistory, formatVolumeHistory } from '../domain/volume.js';
 import { replies } from '../domain/replies.js';
 import { llmClassifierFromEnv, type LLMIntentClassifier } from '../lib/llm.js';
 import { prisma } from '../lib/prisma.js';
@@ -637,6 +638,26 @@ async function processMessage(
         return { reply: t.suggest_unavailable() };
       }
       return { reply: formatWorkoutSuggestion(suggestion, intent.language) };
+    }
+
+    if (intent.type === 'volume') {
+      const weeksBack = 4;
+      const since = new Date(Date.now() - weeksBack * 7 * 24 * 60 * 60 * 1000);
+      const logs = await prisma.exerciseLog.findMany({
+        where: { userId: user.id, loggedAt: { gte: since } },
+        include: { exercise: true },
+        orderBy: { loggedAt: 'asc' }
+      });
+
+      const volumeLogs = logs.map((log) => ({
+        weight: log.weight,
+        reps: toRepsArray(log.reps),
+        loggedAt: log.loggedAt,
+        primaryMuscle: log.exercise.primaryMuscle
+      }));
+
+      const weeks = buildVolumeHistory(volumeLogs, intent.muscle, new Date(), weeksBack);
+      return { reply: formatVolumeHistory(intent.muscle, weeks, intent.language) };
     }
 
     if (intent.type === 'invalid_metric') {

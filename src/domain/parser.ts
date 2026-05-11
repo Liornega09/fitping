@@ -8,6 +8,7 @@ type IntentBody =
   | { type: 'summary_today' }
   | { type: 'summary_week' }
   | { type: 'progress'; exerciseAlias: string }
+  | { type: 'progress_overview' }
   | { type: 'weight'; value: number }
   | { type: 'sleep'; value: number }
   | { type: 'energy'; value: number }
@@ -21,6 +22,7 @@ type IntentBody =
   | { type: 'suggest' }
   | { type: 'volume'; muscle: string }
   | { type: 'set_goal'; exerciseAlias: string; weight: number; reps: number }
+  | { type: 'invalid_goal_format' }
   | { type: 'goals' }
   | { type: 'unknown' };
 
@@ -75,6 +77,10 @@ function parseEnglish(input: string): IntentBody {
     }
   }
 
+  if (/^goal(\s+.*)?$/.test(input)) {
+    return { type: 'invalid_goal_format' };
+  }
+
   if (input === 'goals' || input === 'my goals') {
     return { type: 'goals' };
   }
@@ -96,7 +102,11 @@ function parseEnglish(input: string): IntentBody {
     return { type: 'progress', exerciseAlias: progressMatch[1] };
   }
 
-  const weightMatch = input.match(/^weight\s+(\d+(\.\d+)?)$/);
+  if (input === 'progress') {
+    return { type: 'progress_overview' };
+  }
+
+  const weightMatch = input.match(/^weight\s+(\d+(\.\d+)?)(?:\s*kg)?$/);
   if (weightMatch) {
     return { type: 'weight', value: Number(weightMatch[1]) };
   }
@@ -105,7 +115,7 @@ function parseEnglish(input: string): IntentBody {
     return { type: 'invalid_metric', metric: 'weight' };
   }
 
-  const sleepMatch = input.match(/^sleep\s+(\d+(\.\d+)?)$/);
+  const sleepMatch = input.match(/^sleep\s+(\d+(\.\d+)?)(?:\s*h)?$/);
   if (sleepMatch) {
     return { type: 'sleep', value: Number(sleepMatch[1]) };
   }

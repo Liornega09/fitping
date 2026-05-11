@@ -469,6 +469,38 @@ async function processMessage(
       return { reply: lines.join('\n') };
     }
 
+    if (intent.type === 'progress_overview') {
+      const logs = await prisma.exerciseLog.findMany({
+        where: { userId: user.id },
+        include: { exercise: true },
+        orderBy: { loggedAt: 'desc' },
+        take: 50
+      });
+
+      if (logs.length === 0) {
+        return { reply: t.no_logs_today() };
+      }
+
+      const lastByExercise = new Map<string, { name: string; date: Date; weight: number; topReps: number }>();
+      for (const log of logs) {
+        if (lastByExercise.has(log.exerciseId)) continue;
+        const reps = toRepsArray(log.reps);
+        lastByExercise.set(log.exerciseId, {
+          name: log.exercise.canonicalName,
+          date: log.loggedAt,
+          weight: log.weight,
+          topReps: reps.length ? Math.max(...reps) : 0
+        });
+      }
+
+      const lines = [t.progress_overview_header()];
+      for (const entry of lastByExercise.values()) {
+        const date = entry.date.toISOString().slice(0, 10);
+        lines.push(`${entry.name}: ${entry.weight}kg x ${entry.topReps} (${date})`);
+      }
+      return { reply: lines.join('\n') };
+    }
+
     if (intent.type === 'progress') {
       const resolved = await resolveExercise(intent.exerciseAlias);
       if (!resolved.exercise) {
@@ -665,6 +697,14 @@ async function processMessage(
     }
 
     if (intent.type === 'volume') {
+      // If user typed an exercise alias instead of a muscle, hint them.
+      const maybeExercise = await resolveExercise(intent.muscle);
+      if (maybeExercise.exercise) {
+        return {
+          reply: t.volume_looks_like_exercise(intent.muscle, maybeExercise.exercise.primaryMuscle)
+        };
+      }
+
       const weeksBack = 4;
       const since = new Date(Date.now() - weeksBack * 7 * 24 * 60 * 60 * 1000);
       const logs = await prisma.exerciseLog.findMany({
@@ -682,6 +722,10 @@ async function processMessage(
 
       const weeks = buildVolumeHistory(volumeLogs, intent.muscle, new Date(), weeksBack);
       return { reply: formatVolumeHistory(intent.muscle, weeks, intent.language) };
+    }
+
+    if (intent.type === 'invalid_goal_format') {
+      return { reply: t.invalid_goal_format() };
     }
 
     if (intent.type === 'set_goal') {

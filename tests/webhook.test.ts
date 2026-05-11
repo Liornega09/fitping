@@ -173,7 +173,7 @@ afterEach(async () => {
 describe('whatsapp webhook flow', () => {
   it('full happy path: start, log, done, summary', async () => {
     expect(await send('start A')).toMatch(/started workout a/i);
-    expect(await send('bench 28 10,10,8')).toMatch(/bench press saved/i);
+    expect(await send('bench 28 10,10,8')).toMatch(/bench press: 28kg x 10,10,8/i);
     const doneReply = await send('done');
     expect(doneReply).toMatch(/workout a saved/i);
     expect(doneReply).toMatch(/chest: 3 sets/i);
@@ -271,7 +271,7 @@ describe('whatsapp webhook PR detection', () => {
   it('does not announce a PR on the first-ever log of an exercise', async () => {
     await send('start A');
     const reply = await send('bench 50 8,8,8');
-    expect(reply).toMatch(/bench press saved/i);
+    expect(reply).toMatch(/bench press: 50kg x 8,8,8/i);
     expect(reply).not.toMatch(/1RM/i);
   });
 
@@ -279,7 +279,7 @@ describe('whatsapp webhook PR detection', () => {
     await send('start A');
     await send('bench 50 8,8,8'); // e1RM ≈ 63.3
     const reply = await send('bench 60 5,5'); // e1RM = 70 → PR
-    expect(reply).toMatch(/bench press saved/i);
+    expect(reply).toMatch(/bench press: 60kg x 5,5/i);
     expect(reply).toMatch(/new 1rm est: 70kg \(was 63\.3kg\)/i);
   });
 
@@ -287,7 +287,7 @@ describe('whatsapp webhook PR detection', () => {
     await send('start A');
     await send('bench 60 5,5'); // e1RM = 70
     const reply = await send('bench 50 8,8'); // e1RM ≈ 63.3 → no PR
-    expect(reply).toMatch(/bench press saved/i);
+    expect(reply).toMatch(/bench press: 50kg x 8,8/i);
     expect(reply).not.toMatch(/1RM/i);
   });
 
@@ -337,7 +337,7 @@ describe('whatsapp webhook Hebrew', () => {
   it('parses a Hebrew exercise log and replies in Hebrew', async () => {
     await send('התחל A');
     const reply = await send('בנץ 50 8,8,8');
-    expect(reply).toMatch(/bench press נשמר/);
+    expect(reply).toMatch(/bench press: 50ק"ג x 8,8,8/);
     expect(reply).toMatch(/8,8,8/);
   });
 

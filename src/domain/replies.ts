@@ -42,7 +42,15 @@ export type ReplyKey =
   | 'goal_set'
   | 'goal_achieved'
   | 'goals_header'
-  | 'no_goals';
+  | 'no_goals'
+  | 'goal_deleted'
+  | 'goal_not_found'
+  | 'invalid_goal_format'
+  | 'volume_looks_like_exercise'
+  | 'history_header'
+  | 'history_empty'
+  | 'progress_overview_header'
+  | 'internal_error';
 
 type RepliesEN = {
   help: () => string;
@@ -52,6 +60,15 @@ type RepliesEN = {
   goal_achieved: (exercise: string, weight: number, reps: number) => string;
   goals_header: () => string;
   no_goals: () => string;
+  goal_deleted: (name: string) => string;
+  goal_not_found: (name: string) => string;
+  invalid_goal_format: () => string;
+  volume_looks_like_exercise: (alias: string, muscle: string) => string;
+  history_header: () => string;
+  history_empty: () => string;
+  progress_overview_header: () => string;
+  internal_error: () => string;
+  unknown_exercise: (alias: string) => string;
   started_workout: (name: string) => string;
   workout_already_active: (name: string) => string;
   no_active_workout: () => string;
@@ -106,7 +123,7 @@ const en: RepliesEN = {
       '  volume <muscle>      – weekly volume for a muscle group',
       '  goal <exercise> <kg> x <reps>',
       '  goals                – list your goals',
-      '',,,
+      '',
       'Body metrics',
       '  weight <kg>  sleep <h>  energy <1-10>',
       '  pain <note> <score>/10',
@@ -121,7 +138,16 @@ const en: RepliesEN = {
   goal_achieved: (exercise, weight, reps) => `Goal achieved! ${exercise} ${formatKg(weight)}kg x ${reps}.`,
   goals_header: () => 'Your goals:',
   no_goals: () => 'No goals set yet. Try: goal bench 100kg x 5',
-  started_workout: (name) => `Started workout ${name}.`,
+  goal_deleted: (name) => `Goal removed for ${name}.`,
+  goal_not_found: (name) => `No goal found for ${name}.`,
+  invalid_goal_format: () => 'Usage: goal <exercise> <kg> x <reps>. Example: goal bench 100kg x 5',
+  volume_looks_like_exercise: (alias, muscle) => `"${alias}" looks like an exercise. Try: volume ${muscle}`,
+  history_header: () => 'Recent workouts:',
+  history_empty: () => 'No workouts logged yet.',
+  progress_overview_header: () => 'Recent activity by exercise:',
+  internal_error: () => 'Something went wrong on our side. Please try again.',
+  unknown_exercise: (alias) => `Unknown exercise "${alias}". Try: bench, squat, row, pulldown, shoulder press.`,
+  started_workout: (name) => `Started workout ${name}. Now log: bench 60 5,5,5`,
   workout_already_active: (name) => `Workout ${name} is already active. Send done first.`,
   no_active_workout: () => 'No active workout. Send: start A',
   workout_saved_empty: (name) => `Workout ${name} saved. No exercises logged.`,
@@ -137,14 +163,17 @@ const en: RepliesEN = {
   week_summary_header: () => 'Week summary:',
   no_logs_for_exercise: (name) => `No logs yet for ${name}.`,
   progress_header: (name) => `Progress ${name}:`,
-  metric_saved: (type, value) => `${type} saved: ${value}`,
+  metric_saved: (type, value) => {
+    const unit = type === 'weight' ? 'kg' : type === 'sleep' ? 'h' : '';
+    return `${type} saved: ${value}${unit ? ' ' + unit : ''}`;
+  },
   pain_saved: (note, score) => `Pain saved: ${note} ${score}/10`,
   unknown_exercise_with_suggestion: (alias, suggestion) =>
     `I don't know "${alias}". Did you mean "${suggestion}"?`,
   unknown_exercise_generic: () =>
     'Unknown exercise alias. Try: bench, incline bench, flys, lateral raises, shoulder press, pulldown, row, squat.',
   exercise_saved: (name, weight, repsList) =>
-    `${name} saved: ${formatKg(weight)}kg — ${repsList.length} sets (${repsList.join(',')}).`,
+    `${name}: ${formatKg(weight)}kg x ${repsList.join(',')} ✓`,
   new_pr: (newKg, oldKg) => `New 1RM est: ${formatKg(newKg)}kg (was ${formatKg(oldKg)}kg).`,
   next_target: (weight, reps) => `Next: ${formatKg(weight)}kg x ${reps}.`,
   invalid_energy: () => 'Energy must be 1-10. Example: energy 7',
@@ -191,8 +220,17 @@ const he: RepliesEN = {
   goal_set: (exercise, weight, reps) => `יעד נקבע: ${exercise} ${formatKg(weight)}ק"ג x ${reps}.`,
   goal_achieved: (exercise, weight, reps) => `יעד הושג! ${exercise} ${formatKg(weight)}ק"ג x ${reps}.`,
   goals_header: () => 'היעדים שלך:',
-  no_goals: () => 'אין יעדים עדיין. נסה/י: יעד בנץ 100 5',
-  started_workout: (name) => `התחלתי אימון ${name}.`,
+  no_goals: () => 'אין יעדים עדיין. נסה/י: יעד בנץ 100 x 5',
+  goal_deleted: (name) => `היעד ל-${name} הוסר.`,
+  goal_not_found: (name) => `לא נמצא יעד ל-${name}.`,
+  invalid_goal_format: () => 'שימוש: יעד <תרגיל> <ק"ג> x <חזרות>. דוגמה: יעד בנץ 100 x 5',
+  volume_looks_like_exercise: (alias, muscle) => `"${alias}" נראה כתרגיל. נסה/י: נפח ${muscle}`,
+  history_header: () => 'אימונים אחרונים:',
+  history_empty: () => 'עדיין אין אימונים.',
+  progress_overview_header: () => 'פעילות אחרונה לפי תרגיל:',
+  internal_error: () => 'משהו השתבש אצלנו. נסה/י שוב.',
+  unknown_exercise: (alias) => `תרגיל לא מוכר "${alias}". נסה/י: בנץ, סקוואט, חתירה, פולי, כתפיים.`,
+  started_workout: (name) => `התחלתי אימון ${name}. עכשיו רשום/י: בנץ 60 5,5,5`,
   workout_already_active: (name) => `אימון ${name} כבר פעיל. שלח/י קודם "סיימתי".`,
   no_active_workout: () => 'אין אימון פעיל. שלח/י: התחל A',
   workout_saved_empty: (name) => `אימון ${name} נשמר. לא נרשמו תרגילים.`,
@@ -200,7 +238,16 @@ const he: RepliesEN = {
   total_sets: (count) => `סה"כ: ${count} סטים`,
   top_lift: (label) => `הרמה הכי כבדה: ${label}`,
   nothing_to_undo: () => 'אין מה לבטל.',
-  metric_removed: (type) => `${type} נמחק.`,
+  metric_removed: (type) => {
+    const labels: Record<string, { he: string; verb: string }> = {
+      weight: { he: 'משקל', verb: 'נמחק' },
+      sleep: { he: 'שינה', verb: 'נמחקה' },
+      energy: { he: 'אנרגיה', verb: 'נמחקה' },
+      pain: { he: 'כאב', verb: 'נמחק' }
+    };
+    const entry = labels[type] ?? { he: type, verb: 'נמחק' };
+    return `${entry.he} ${entry.verb}.`;
+  },
   exercise_removed: (name) => `${name} נמחק.`,
   no_logs_today: () => 'אין אימונים שנרשמו היום.',
   today_summary_header: () => 'סיכום היום:',
@@ -208,14 +255,23 @@ const he: RepliesEN = {
   week_summary_header: () => 'סיכום השבוע:',
   no_logs_for_exercise: (name) => `אין עדיין רישומים ל-${name}.`,
   progress_header: (name) => `התקדמות ${name}:`,
-  metric_saved: (type, value) => `${type} נשמר: ${value}`,
+  metric_saved: (type, value) => {
+    const labels: Record<string, { he: string; verb: string; unit: string }> = {
+      weight: { he: 'משקל', verb: 'נשמר', unit: 'ק"ג' },
+      sleep: { he: 'שינה', verb: 'נשמרה', unit: 'שעות' },
+      energy: { he: 'אנרגיה', verb: 'נשמרה', unit: '/10' }
+    };
+    const entry = labels[type] ?? { he: type, verb: 'נשמר', unit: '' };
+    const suffix = entry.unit === '/10' ? `${value}/10` : `${value}${entry.unit ? ' ' + entry.unit : ''}`;
+    return `${entry.he} ${entry.verb}: ${suffix}`;
+  },
   pain_saved: (note, score) => `כאב נשמר: ${note} ${score}/10`,
   unknown_exercise_with_suggestion: (alias, suggestion) =>
     `לא מכיר "${alias}". התכוונת ל-"${suggestion}"?`,
   unknown_exercise_generic: () =>
     'תרגיל לא מוכר. נסה: בנץ, משופע, פרפר, הרחקות, כתפיים, פולי, חתירה, סקוואט.',
   exercise_saved: (name, weight, repsList) =>
-    `${name} נשמר: ${formatKg(weight)}ק"ג — ${repsList.length} סטים (${repsList.join(',')}).`,
+    `${name}: ${formatKg(weight)}ק"ג x ${repsList.join(',')} ✓`,
   new_pr: (newKg, oldKg) => `שיא חדש: 1RM משוער ${formatKg(newKg)}ק"ג (קודם ${formatKg(oldKg)}ק"ג).`,
   next_target: (weight, reps) => `הבא: ${formatKg(weight)}ק"ג x ${reps}.`,
   invalid_energy: () => 'אנרגיה חייבת להיות 1-10. דוגמה: אנרגיה 7',

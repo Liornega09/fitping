@@ -240,7 +240,13 @@ export async function whatsappWebhookRoute(
       return { reply: replies(intent.language).rate_limited() };
     }
 
-    const result = await processMessage(from, message, llm);
+    let result: { reply: string };
+    try {
+      result = await processMessage(from, message, llm);
+    } catch (err) {
+      request.log.error({ err, from }, 'processMessage threw — returning friendly error');
+      result = { reply: replies(intent.language).internal_error() };
+    }
 
     if (messageSid) {
       try {
@@ -469,7 +475,7 @@ async function processMessage(
         if (resolved.suggestion) {
           return { reply: t.unknown_exercise_with_suggestion(intent.exerciseAlias, resolved.suggestion) };
         }
-        return { reply: t.unknown_exercise_with_suggestion(intent.exerciseAlias, intent.exerciseAlias) };
+        return { reply: t.unknown_exercise(intent.exerciseAlias) };
       }
 
       const logs = await prisma.exerciseLog.findMany({

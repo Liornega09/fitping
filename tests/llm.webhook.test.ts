@@ -156,8 +156,7 @@ describe('whatsapp webhook LLM fallback', () => {
       'I just hit bench for two heavy fives at sixty kilos'
     );
     expect(classify).toHaveBeenCalledTimes(1);
-    expect(reply).toMatch(/bench press saved: 60kg/);
-    expect(reply).toMatch(/5,5/);
+    expect(reply).toMatch(/bench press: 60kg x 5,5/);
   });
 
   it('keeps the regex error reply when the LLM also returns unknown', async () => {

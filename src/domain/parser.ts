@@ -19,6 +19,7 @@ type IntentBody =
   | { type: 'invalid_exercise_log' }
   | { type: 'help' }
   | { type: 'suggest' }
+  | { type: 'volume'; muscle: string }
   | { type: 'unknown' };
 
 export type Intent = IntentBody & { language: Language };
@@ -55,6 +56,11 @@ function parseEnglish(input: string): IntentBody {
 
   if (input === 'suggest' || input === 'suggestion' || input === 'recommend') {
     return { type: 'suggest' };
+  }
+
+  const volumeMatch = input.match(/^volume\s+(.+)$/);
+  if (volumeMatch) {
+    return { type: 'volume', muscle: volumeMatch[1] };
   }
 
   if (input === 'undo') {

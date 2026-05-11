@@ -162,4 +162,32 @@ describe('parseIntent', () => {
       expect(parseIntent('hello')).toMatchObject({ type: 'unknown' });
     });
   });
+
+  describe('parser flexibility (round 3)', () => {
+    it('weight accepts kg suffix', () => {
+      expect(parseIntent('weight 92kg')).toMatchObject({ type: 'weight', value: 92 });
+      expect(parseIntent('weight 92 kg')).toMatchObject({ type: 'weight', value: 92 });
+    });
+    it('sleep accepts h suffix', () => {
+      expect(parseIntent('sleep 6.5h')).toMatchObject({ type: 'sleep', value: 6.5 });
+      expect(parseIntent('sleep 7 h')).toMatchObject({ type: 'sleep', value: 7 });
+    });
+    it('progress without name returns overview', () => {
+      expect(parseIntent('progress')).toMatchObject({ type: 'progress_overview' });
+    });
+    it('goal without reps returns invalid_goal_format', () => {
+      expect(parseIntent('goal bench 100')).toMatchObject({ type: 'invalid_goal_format' });
+    });
+    it('goal alone returns invalid_goal_format', () => {
+      expect(parseIntent('goal')).toMatchObject({ type: 'invalid_goal_format' });
+    });
+    it('valid goal still parses', () => {
+      expect(parseIntent('goal bench 100 5')).toMatchObject({
+        type: 'set_goal',
+        exerciseAlias: 'bench',
+        weight: 100,
+        reps: 5
+      });
+    });
+  });
 });

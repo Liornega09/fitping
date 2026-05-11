@@ -106,6 +106,31 @@ function toTwiml(message: string) {
   return `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(message)}</Message></Response>`;
 }
 
+// ---------------------------------------------------------------------------
+// Rate limiter — 20 messages per user per 60-second window (in-memory).
+// Resets automatically; no persistence needed for this threshold.
+// ---------------------------------------------------------------------------
+const RATE_LIMIT_MAX = 20;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+type RateBucket = { count: number; windowStart: number };
+const rateBuckets = new Map<string, RateBucket>();
+
+/** Exposed for tests only — clears all rate-limit state. */
+export function clearRateLimiter(): void {
+  rateBuckets.clear();
+}
+
+function isRateLimited(userId: string, now: number): boolean {
+  const bucket = rateBuckets.get(userId);
+  if (!bucket || now - bucket.windowStart >= RATE_LIMIT_WINDOW_MS) {
+    rateBuckets.set(userId, { count: 1, windowStart: now });
+    return false;
+  }
+  bucket.count += 1;
+  return bucket.count > RATE_LIMIT_MAX;
+}
+
 type WebhookReply = { reply: string };
 
 export type WhatsappRouteOptions = {
@@ -205,6 +230,11 @@ export async function whatsappWebhookRoute(
         request.log.info({ messageSid }, 'Returning cached reply for duplicate MessageSid');
         return { reply: cached.replyText };
       }
+    }
+
+    const intent = parseIntent(message);
+    if (isRateLimited(from, Date.now())) {
+      return { reply: replies(intent.language).rate_limited() };
     }
 
     const result = await processMessage(from, message, llm);

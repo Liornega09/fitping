@@ -20,6 +20,8 @@ type IntentBody =
   | { type: 'help' }
   | { type: 'suggest' }
   | { type: 'volume'; muscle: string }
+  | { type: 'set_goal'; exerciseAlias: string; weight: number; reps: number }
+  | { type: 'goals' }
   | { type: 'unknown' };
 
 export type Intent = IntentBody & { language: Language };
@@ -61,6 +63,20 @@ function parseEnglish(input: string): IntentBody {
   const volumeMatch = input.match(/^volume\s+(.+)$/);
   if (volumeMatch) {
     return { type: 'volume', muscle: volumeMatch[1] };
+  }
+
+  // goal bench 100kg x 5  OR  goal bench 100 5
+  const goalMatch = input.match(/^goal\s+(\S+(?:\s+\S+)*)\s+(\d+(?:\.\d+)?)(?:kg)?\s+(?:x\s*)?(\d+)$/);
+  if (goalMatch) {
+    const weight = Number(goalMatch[2]);
+    const reps = Number(goalMatch[3]);
+    if (Number.isFinite(weight) && weight > 0 && Number.isFinite(reps) && reps > 0) {
+      return { type: 'set_goal', exerciseAlias: goalMatch[1], weight, reps };
+    }
+  }
+
+  if (input === 'goals' || input === 'my goals') {
+    return { type: 'goals' };
   }
 
   if (input === 'undo') {

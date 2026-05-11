@@ -38,12 +38,20 @@ export type ReplyKey =
   | 'missing_payload'
   | 'total_sets'
   | 'help'
-  | 'rate_limited';
+  | 'rate_limited'
+  | 'goal_set'
+  | 'goal_achieved'
+  | 'goals_header'
+  | 'no_goals';
 
 type RepliesEN = {
   help: () => string;
   suggest_unavailable: () => string;
   rate_limited: () => string;
+  goal_set: (exercise: string, weight: number, reps: number) => string;
+  goal_achieved: (exercise: string, weight: number, reps: number) => string;
+  goals_header: () => string;
+  no_goals: () => string;
   started_workout: (name: string) => string;
   workout_already_active: (name: string) => string;
   no_active_workout: () => string;
@@ -96,7 +104,9 @@ const en: RepliesEN = {
       '  progress <exercise>',
       '  suggest              – next workout based on history',
       '  volume <muscle>      – weekly volume for a muscle group',
-      '',,
+      '  goal <exercise> <kg> x <reps>',
+      '  goals                – list your goals',
+      '',,,
       'Body metrics',
       '  weight <kg>  sleep <h>  energy <1-10>',
       '  pain <note> <score>/10',
@@ -107,6 +117,10 @@ const en: RepliesEN = {
     ].join('\n'),
   suggest_unavailable: () => 'No suggestion available — try logging a few workouts first.',
   rate_limited: () => 'Too many messages. Please wait a minute.',
+  goal_set: (exercise, weight, reps) => `Goal set: ${exercise} ${formatKg(weight)}kg x ${reps}.`,
+  goal_achieved: (exercise, weight, reps) => `Goal achieved! ${exercise} ${formatKg(weight)}kg x ${reps}.`,
+  goals_header: () => 'Your goals:',
+  no_goals: () => 'No goals set yet. Try: goal bench 100kg x 5',
   started_workout: (name) => `Started workout ${name}.`,
   workout_already_active: (name) => `Workout ${name} is already active. Send done first.`,
   no_active_workout: () => 'No active workout. Send: start A',
@@ -161,6 +175,8 @@ const he: RepliesEN = {
       '  התקדמות <תרגיל>',
       '  הצע               – אימון מוצע לפי היסטוריה',
       '  נפח <שריר>        – נפח שבועי לקבוצת שריר',
+      '  יעד <תרגיל> <ק"ג> <חזרות>',
+      '  יעדים             – רשימת היעדים',
       '',
       'מדדי גוף',
       '  משקל <ק"ג>  שינה <שעות>  אנרגיה <1-10>',
@@ -172,6 +188,10 @@ const he: RepliesEN = {
     ].join('\n'),
   suggest_unavailable: () => 'אין הצעה זמינה עדיין — נסה/י לרשום כמה אימונים קודם.',
   rate_limited: () => 'יותר מדי הודעות. המתן/י דקה.',
+  goal_set: (exercise, weight, reps) => `יעד נקבע: ${exercise} ${formatKg(weight)}ק"ג x ${reps}.`,
+  goal_achieved: (exercise, weight, reps) => `יעד הושג! ${exercise} ${formatKg(weight)}ק"ג x ${reps}.`,
+  goals_header: () => 'היעדים שלך:',
+  no_goals: () => 'אין יעדים עדיין. נסה/י: יעד בנץ 100 5',
   started_workout: (name) => `התחלתי אימון ${name}.`,
   workout_already_active: (name) => `אימון ${name} כבר פעיל. שלח/י קודם "סיימתי".`,
   no_active_workout: () => 'אין אימון פעיל. שלח/י: התחל A',

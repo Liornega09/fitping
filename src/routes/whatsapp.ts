@@ -12,6 +12,7 @@ import { suggestWorkout, formatSuggestion as formatWorkoutSuggestion, type Recen
 import { EXERCISE_SEEDS } from '../domain/catalog.js';
 import { detectPlateau, formatPlateauWarning } from '../domain/plateau.js';
 import { buildVolumeHistory, formatVolumeHistory } from '../domain/volume.js';
+import { computeGoalProgress, formatGoalProgress, formatGoalAchieved } from '../domain/goals.js';
 import { replies } from '../domain/replies.js';
 import { llmClassifierFromEnv, type LLMIntentClassifier } from '../lib/llm.js';
 import { prisma } from '../lib/prisma.js';
@@ -594,6 +595,23 @@ async function processMessage(
         }
       }
 
+      // Goal check — if the user has a goal for this exercise, check if it's now achieved.
+      const goal = await prisma.goal.findUnique({
+        where: { userId_exerciseId: { userId: user.id, exerciseId: resolved.exercise.id } },
+        include: { exercise: true }
+      });
+      if (goal && !goal.achievedAt) {
+        const currentE1RM = newBest;
+        const targetE1RM = goal.targetWeight * (1 + goal.targetReps / 30);
+        if (currentE1RM >= targetE1RM) {
+          await prisma.goal.update({
+            where: { userId_exerciseId: { userId: user.id, exerciseId: resolved.exercise.id } },
+            data: { achievedAt: new Date() }
+          });
+          lines.push(formatGoalAchieved(goal.exercise.canonicalName, goal.targetWeight, goal.targetReps, intent.language));
+        }
+      }
+
       return { reply: lines.join('\n') };
     }
 
@@ -658,6 +676,62 @@ async function processMessage(
 
       const weeks = buildVolumeHistory(volumeLogs, intent.muscle, new Date(), weeksBack);
       return { reply: formatVolumeHistory(intent.muscle, weeks, intent.language) };
+    }
+
+    if (intent.type === 'set_goal') {
+      const resolved = await resolveExercise(intent.exerciseAlias);
+      if (!resolved.exercise) {
+        if (resolved.suggestion) {
+          return { reply: t.unknown_exercise_with_suggestion(intent.exerciseAlias, resolved.suggestion) };
+        }
+        return { reply: t.unknown_exercise_generic() };
+      }
+
+      await prisma.goal.upsert({
+        where: { userId_exerciseId: { userId: user.id, exerciseId: resolved.exercise.id } },
+        update: { targetWeight: intent.weight, targetReps: intent.reps, achievedAt: null },
+        create: { userId: user.id, exerciseId: resolved.exercise.id, targetWeight: intent.weight, targetReps: intent.reps }
+      });
+
+      return { reply: t.goal_set(resolved.exercise.canonicalName, intent.weight, intent.reps) };
+    }
+
+    if (intent.type === 'goals') {
+      const goals = await prisma.goal.findMany({
+        where: { userId: user.id },
+        include: { exercise: true },
+        orderBy: { createdAt: 'asc' }
+      });
+
+      if (goals.length === 0) {
+        return { reply: t.no_goals() };
+      }
+
+      const lines = [t.goals_header()];
+      for (const goal of goals) {
+        const logs = await prisma.exerciseLog.findMany({
+          where: { userId: user.id, exerciseId: goal.exerciseId }
+        });
+        const bestE1RM = logs.reduce((best, log) => {
+          const reps = toRepsArray(log.reps);
+          const e1rm = Math.max(...reps.map((r) => (log.weight * (1 + r / 30))));
+          return e1rm > best ? e1rm : best;
+        }, 0);
+
+        const progress = computeGoalProgress(
+          {
+            exerciseName: goal.exercise.canonicalName,
+            targetWeight: goal.targetWeight,
+            targetReps: goal.targetReps,
+            achievedAt: goal.achievedAt,
+            createdAt: goal.createdAt
+          },
+          bestE1RM
+        );
+        lines.push(formatGoalProgress(progress, intent.language));
+      }
+
+      return { reply: lines.join('\n') };
     }
 
     if (intent.type === 'invalid_metric') {

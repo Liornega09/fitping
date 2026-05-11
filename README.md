@@ -1,6 +1,8 @@
-# FitPing Workout Bot (MVP)
+# FitPing Workout Bot
 
 Simple WhatsApp-first workout logger backend.
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Liornega09/fitping)
 
 ## Stack
 - Node.js + TypeScript
@@ -15,6 +17,26 @@ Simple WhatsApp-first workout logger backend.
 5. Run migrations: `npm run prisma:migrate -- --name init`
 6. Seed exercises: `npm run seed`
 7. Start server: `npm run dev`
+
+## Deploy to Render
+
+Click the button above or follow these steps:
+
+1. Fork this repo.
+2. Go to [render.com](https://render.com) → New → Blueprint.
+3. Connect your fork — Render reads `render.yaml` and creates:
+   - Web service (FitPing API)
+   - PostgreSQL database
+   - Two cron jobs (weekly summary + nudge)
+4. Set the secret env vars in the Render dashboard:
+   - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_NUMBER`
+   - `INTERNAL_JOBS_TOKEN` (any random string)
+   - `OPENAI_API_KEY` (optional — enables LLM fallback)
+5. After deploy, point your Twilio WhatsApp webhook to:
+   `https://<your-service>.onrender.com/webhooks/whatsapp`
+
+> Note: Render free-tier web services spin down after inactivity.
+> For production use, upgrade to a paid plan or use an external uptime monitor.
 
 ## Endpoint
 - `POST /webhooks/whatsapp`

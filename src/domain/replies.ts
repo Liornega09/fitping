@@ -37,11 +37,13 @@ export type ReplyKey =
   | 'could_not_parse'
   | 'missing_payload'
   | 'total_sets'
-  | 'help';
+  | 'help'
+  | 'rate_limited';
 
 type RepliesEN = {
   help: () => string;
   suggest_unavailable: () => string;
+  rate_limited: () => string;
   started_workout: (name: string) => string;
   workout_already_active: (name: string) => string;
   no_active_workout: () => string;
@@ -103,6 +105,7 @@ const en: RepliesEN = {
       '  lateral raises, curl, pushdown, and more.',
     ].join('\n'),
   suggest_unavailable: () => 'No suggestion available — try logging a few workouts first.',
+  rate_limited: () => 'Too many messages. Please wait a minute.',
   started_workout: (name) => `Started workout ${name}.`,
   workout_already_active: (name) => `Workout ${name} is already active. Send done first.`,
   no_active_workout: () => 'No active workout. Send: start A',
@@ -166,6 +169,7 @@ const he: RepliesEN = {
       '  הרחקות, קרל, פושדאון ועוד.',
     ].join('\n'),
   suggest_unavailable: () => 'אין הצעה זמינה עדיין — נסה/י לרשום כמה אימונים קודם.',
+  rate_limited: () => 'יותר מדי הודעות. המתן/י דקה.',
   started_workout: (name) => `התחלתי אימון ${name}.`,
   workout_already_active: (name) => `אימון ${name} כבר פעיל. שלח/י קודם "סיימתי".`,
   no_active_workout: () => 'אין אימון פעיל. שלח/י: התחל A',

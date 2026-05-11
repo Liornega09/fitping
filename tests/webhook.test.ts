@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Prisma } from '@prisma/client';
+import { clearRateLimiter } from '../src/routes/whatsapp.js';
 
 const userStore = new Map<string, { id: string; whatsappNumber: string }>();
 const workoutStore: any[] = [];
@@ -137,11 +138,11 @@ import { buildApp } from '../src/app.js';
 let app: Awaited<ReturnType<typeof buildApp>>;
 const FROM = 'whatsapp:+972500000001';
 
-async function send(body: string) {
+async function send(body: string, from: string = FROM) {
   const res = await app.inject({
     method: 'POST',
     url: '/webhooks/whatsapp?format=json',
-    payload: `From=${encodeURIComponent(FROM)}&Body=${encodeURIComponent(body)}`,
+    payload: `From=${encodeURIComponent(from)}&Body=${encodeURIComponent(body)}`,
     headers: { 'content-type': 'application/x-www-form-urlencoded' }
   });
   expect(res.statusCode).toBe(200);
@@ -155,6 +156,7 @@ beforeEach(async () => {
   bodyMetricStore.length = 0;
   processedMessageStore.clear();
   idCounter = 0;
+  clearRateLimiter();
   app = await buildApp();
 });
 
@@ -347,5 +349,39 @@ describe('whatsapp webhook Hebrew', () => {
 
   it('English messages still reply in English', async () => {
     expect(await send('start A')).toMatch(/started workout/i);
+  });
+});
+
+describe('rate limiting', () => {
+  it('allows up to 20 messages per minute', async () => {
+    for (let i = 0; i < 20; i++) {
+      const reply = await send('help');
+      expect(reply).not.toMatch(/too many|wait a minute|יותר מדי/i);
+    }
+  });
+
+  it('blocks the 21st message in the same window', async () => {
+    for (let i = 0; i < 20; i++) {
+      await send('help');
+    }
+    const reply = await send('help');
+    expect(reply).toMatch(/too many|wait a minute/i);
+  });
+
+  it('replies in Hebrew when rate-limited from a Hebrew message', async () => {
+    for (let i = 0; i < 20; i++) {
+      await send('עזרה');
+    }
+    const reply = await send('עזרה');
+    expect(reply).toMatch(/יותר מדי/i);
+  });
+
+  it('does not affect a different sender', async () => {
+    for (let i = 0; i < 21; i++) {
+      await send('help', 'whatsapp:+972500000001');
+    }
+    // Different number — should not be rate-limited
+    const reply = await send('help', 'whatsapp:+972500000002');
+    expect(reply).not.toMatch(/too many|wait a minute/i);
   });
 });

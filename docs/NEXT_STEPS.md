@@ -15,8 +15,15 @@
 - Proactive nudges cron endpoint (PR #11)
 - `help` / `עזרה` command (PR #11)
 - Smart workout suggestion `suggest` / `הצע` (PR #12)
+- Rate limiting — 20 msg/min/user (PR #14)
+- Plateau detection — אזהרה ב-`progress` ו-`suggest` (PR #15)
+- Volume trends — `volume <muscle>` / `נפח <שריר>` (PR #16)
+- Goals — `goal <ex> <kg> x <reps>` + achievement detection (PR #17)
+- Render deploy blueprint + README button (PR #18)
+- UX polish round 1+2 — bug fixes, units, gender, compressed `exercise_saved` (PR #19)
+- Parser flexibility round 3 — `weight 92kg`, `sleep 6.5h`, `progress` overview, `invalid_goal_format`, `volume <exercise>` hint (PR #20)
 
-153/153 טסטים עוברים. CI ירוק. Branch protection על `main` (PR + Typecheck & Tests required).
+190/190 טסטים עוברים. CI ירוק. Branch protection על `main` (PR + Typecheck & Tests required).
 
 ## תזכורות תפעוליות
 
@@ -30,58 +37,55 @@
 
 ## הצעדים הבאים
 
-### I — Plateau Detection (אוטומטי)
-**מטרה:** לזהות שאין התקדמות בתרגיל 3+ שבועות ולהוסיף הערה בסיכום שבועי / ב-`progress`.
+המשך UX audit (3 rounds מתוך 5 בוצעו). PR #19 כיסה בעיקר baseline bugs + units, PR #20 כיסה גמישות parser. נשארו:
+
+### Round 4 — New Commands
+**מטרה:** להרחיב את אוצר הפקודות עם דברים שיוצא לבקש בשטח.
 
 **תכנון:**
-1. `src/domain/plateau.ts` — `detectPlateau(logs: { weight, reps, date }[]): PlateauResult | null`
-   - בודק 3 שבועות אחרונים; אם e1RM לא עלה → `{ staleWeeks: 3, lastBest: ... }`
-2. שילוב ב-`progress` intent: להוסיף שורת אזהרה "Plateau detected — consider a deload week."
-3. שילוב ב-`suggest`: לסמן תרגיל ב-plateau עם הערה מיוחדת
-4. טסטים: 6 unit ל-`plateau.ts`
+1. `delete goal <exercise>` (HE: `מחק יעד <תרגיל>`)
+   - parser intent חדש `delete_goal`
+   - handler: `prisma.goal.delete(...)` + `t.goal_deleted(name)` / `t.goal_not_found(alias)` (replies קיימים)
+2. `history` (HE: `היסטוריה`)
+   - intent חדש `history`
+   - handler: `prisma.workout.findMany({ orderBy: { startedAt: 'desc' }, take: 5 })`
+   - reply: 5 אימונים אחרונים — תאריך, שם, summary קצר
+   - replies קיימים: `history_header`, `history_empty`
+3. `summary month` (HE: `סיכום חודש`)
+   - parser: להרחיב את ה-regex של `summary` כדי לתפוס `month`
+   - handler: כמו summary week אבל 4 שבועות אחורה
+4. `undo 2` — מחיקה של N רישומים אחרונים
+   - parser: `^undo\s+(\d+)$` → `{ type: 'undo', count: N }`
+   - handler: לעדכן את הקיים שיתמוך ב-loop של count
+5. טסטים: parser + webhook לכל פקודה
 
-### J — Volume Trends
-**מטרה:** `volume <muscle>` (עברית: `נפח <שריר>`) — מציג נפח שבועי ל-4 שבועות אחרונים.
-
-**תכנון:**
-1. `src/domain/volume.ts` — `buildVolumeHistory(logs, muscle, now)` → שורות של `week: שבוע X — N sets`
-2. intent חדש `volume` ב-parser + i18n + replies
-3. handler ב-whatsapp.ts
-4. טסטים
-
-### K — Rate Limiting
-**מטרה:** הגנה על ה-webhook — מקסימום 20 הודעות לדקה למשתמש.
-
-**תכנון:**
-1. in-memory `Map<userId, { count, windowStart }>` — reset כל 60 שניות
-2. middleware ב-`src/routes/whatsapp.ts` לפני הלוגיקה
-3. תשובה: `t.rate_limited()` — "Too many requests. Please wait a minute."
-4. טסטים
-
-### L — Goals
-**מטרה:** `goal bench 100kg` — שומר יעד ומציג התקדמות.
+### Round 5 — Display Polish
+**מטרה:** החזרות יראו יפה גם במסכי טלפון צרים.
 
 **תכנון:**
-1. מודל Prisma חדש `Goal { id, userId, exerciseId, targetWeight, targetReps, createdAt, achievedAt? }`
-2. migration חדש
-3. intents: `set_goal` + `goals` (הצגת כל היעדים עם % התקדמות)
-4. אחרי כל PR חדש — בדיקה אם יעד הושג
-5. טסטים
+1. **suggest בפורמט 2 שורות לכל תרגיל:**
+   ```
+   1. bench press [plateau]
+      last 80kg x 5 → try 82.5kg x 5
+   ```
+   במקום שורה אחת ארוכה
+2. **progress עם חיצי טרנד:** לחשב הפרש e1RM בין רישומים עוקבים, להוסיף ↑/→/↓ לפני כל שורה
+3. (`progress` ללא שם → overview כבר בוצע ב-PR #20)
 
-### M — Render Deploy Button
-**מטרה:** להוסיף ל-README כפתור "Deploy to Render" + קובץ `render.yaml`.
+## דחיינו (architectural / decisions)
 
-**תכנון:**
-1. `render.yaml` בשורש — web service + postgres + cron jobs
-2. env vars מוגדרים כ-`sync: false` (סודות)
-3. badge ב-README
+- **#21 LLM rate cap** — כרגע אין הגבלה על קריאות OpenAI. צריך counter יומי per-user ולהפסיק להשתמש ב-LLM אחרי N קריאות. דורש החלטה: מי משלם, מה הסף.
+- **#22 Timezone respect** — כל החישובים ב-UTC. weekly summary יורד יום שני 08:00 UTC = 11:00 בישראל. דורש שדה `timezone` במשתמש + UI לבחירה.
+- **#23 Redis rate limiter** — הגבלה הנוכחית in-memory; לא שורדת restart, לא משתפת בין instances. דורש החלטה על infra (Render Redis? Upstash?).
+- **#24 Arabic-Indic numerals** — משתמשים בעברית עלולים להקליד `٥` במקום `5`. נדיר. אם יוטמע — `normalizeText` יתרגם לפני parser.
+- **#25 render.yaml dynamic URL** — ה-cron jobs מקושרים ל-`https://fitping.onrender.com` hardcoded. דורש להבין אם Render תומך ב-template variable.
+- **PROJECT_BOOK update** — `docs/PROJECT_BOOK.md` לא עודכן מאז PR #11. צריך סשן יעודי לעדכון עם כל מה שנעשה (PRs #12-#20).
 
 ## סדר עדיפויות מומלץ
-1. K — Rate Limiting (קצר, חשוב לאבטחה)
-2. I — Plateau Detection (שיפור ל-suggest + progress)
-3. J — Volume Trends (UX)
-4. L — Goals (DB migration נדרש)
-5. M — Render Deploy (תשתית)
+1. Round 4 — פקודות חדשות (ערך משתמש מיידי)
+2. Round 5 — display polish (קוסמטי, אבל זול)
+3. PROJECT_BOOK update
+4. דחויים — לפי החלטה תפעולית
 
 ## נוהל פיתוח (תזכורת)
 

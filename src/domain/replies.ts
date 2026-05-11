@@ -41,6 +41,7 @@ export type ReplyKey =
 
 type RepliesEN = {
   help: () => string;
+  suggest_unavailable: () => string;
   started_workout: (name: string) => string;
   workout_already_active: (name: string) => string;
   no_active_workout: () => string;
@@ -91,6 +92,7 @@ const en: RepliesEN = {
       'Tracking',
       '  summary today / week',
       '  progress <exercise>',
+      '  suggest              – next workout based on history',
       '',
       'Body metrics',
       '  weight <kg>  sleep <h>  energy <1-10>',
@@ -100,6 +102,7 @@ const en: RepliesEN = {
       '  incline bench, flys, shoulder press,',
       '  lateral raises, curl, pushdown, and more.',
     ].join('\n'),
+  suggest_unavailable: () => 'No suggestion available — try logging a few workouts first.',
   started_workout: (name) => `Started workout ${name}.`,
   workout_already_active: (name) => `Workout ${name} is already active. Send done first.`,
   no_active_workout: () => 'No active workout. Send: start A',
@@ -152,6 +155,7 @@ const he: RepliesEN = {
       'מעקב',
       '  סיכום היום / שבוע',
       '  התקדמות <תרגיל>',
+      '  הצע               – אימון מוצע לפי היסטוריה',
       '',
       'מדדי גוף',
       '  משקל <ק"ג>  שינה <שעות>  אנרגיה <1-10>',
@@ -161,6 +165,7 @@ const he: RepliesEN = {
       '  משופע, פרפר, כתפיים,',
       '  הרחקות, קרל, פושדאון ועוד.',
     ].join('\n'),
+  suggest_unavailable: () => 'אין הצעה זמינה עדיין — נסה/י לרשום כמה אימונים קודם.',
   started_workout: (name) => `התחלתי אימון ${name}.`,
   workout_already_active: (name) => `אימון ${name} כבר פעיל. שלח/י קודם "סיימתי".`,
   no_active_workout: () => 'אין אימון פעיל. שלח/י: התחל A',

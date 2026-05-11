@@ -18,6 +18,7 @@ type IntentBody =
   | { type: 'invalid_pain' }
   | { type: 'invalid_exercise_log' }
   | { type: 'help' }
+  | { type: 'suggest' }
   | { type: 'unknown' };
 
 export type Intent = IntentBody & { language: Language };
@@ -50,6 +51,10 @@ function parseEnglish(input: string): IntentBody {
 
   if (input === 'help' || input === 'עזרה') {
     return { type: 'help' };
+  }
+
+  if (input === 'suggest' || input === 'suggestion' || input === 'recommend') {
+    return { type: 'suggest' };
   }
 
   if (input === 'undo') {

@@ -8,6 +8,8 @@ import {
   roundKg
 } from '../domain/pr.js';
 import { formatSuggestion, suggestNextTarget } from '../domain/overload.js';
+import { suggestWorkout, formatSuggestion as formatWorkoutSuggestion, type RecentLogEntry } from '../domain/suggest.js';
+import { EXERCISE_SEEDS } from '../domain/catalog.js';
 import { replies } from '../domain/replies.js';
 import { llmClassifierFromEnv, type LLMIntentClassifier } from '../lib/llm.js';
 import { prisma } from '../lib/prisma.js';
@@ -560,6 +562,41 @@ async function processMessage(
 
     if (intent.type === 'help') {
       return { reply: t.help() };
+    }
+
+    if (intent.type === 'suggest') {
+      const lookbackDays = 14;
+      const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000);
+      const logs = await prisma.exerciseLog.findMany({
+        where: { userId: user.id, loggedAt: { gte: since } },
+        include: { exercise: true },
+        orderBy: { loggedAt: 'desc' }
+      });
+
+      const recentLogs: RecentLogEntry[] = logs.map((log) => {
+        const reps = toRepsArray(log.reps);
+        const topReps = reps.length > 0 ? Math.max(...reps) : 0;
+        return {
+          canonicalName: log.exercise.canonicalName,
+          primaryMuscle: log.exercise.primaryMuscle,
+          workoutDate: log.loggedAt,
+          bestSet: { weight: log.weight, reps: topReps }
+        };
+      });
+
+      const suggestion = suggestWorkout({
+        catalog: EXERCISE_SEEDS.map((e) => ({
+          canonicalName: e.canonicalName,
+          primaryMuscle: e.primaryMuscle
+        })),
+        recentLogs,
+        now: new Date()
+      });
+
+      if (!suggestion) {
+        return { reply: t.suggest_unavailable() };
+      }
+      return { reply: formatWorkoutSuggestion(suggestion, intent.language) };
     }
 
     if (intent.type === 'invalid_metric') {

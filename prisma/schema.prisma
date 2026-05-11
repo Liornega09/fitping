@@ -28,6 +28,7 @@ model User {
   workouts        Workout[]
   exerciseLogs    ExerciseLog[]
   bodyMetrics     BodyMetric[]
+  goals           Goal[]
 }
 
 model Workout {
@@ -55,6 +56,7 @@ model Exercise {
   aliases            Json
   isActive           Boolean       @default(true)
   exerciseLogs       ExerciseLog[]
+  goals              Goal[]
 }
 
 model ExerciseLog {
@@ -117,4 +119,23 @@ model WeeklySummary {
 
   @@unique([userId, weekStart])
   @@index([sentAt])
+}
+
+/// A user-defined strength goal for a specific exercise.
+/// A goal is "achieved" when an exercise_log produces an e1RM that meets
+/// or exceeds the target weight at the target reps (or fewer).
+model Goal {
+  id           String    @id @default(cuid())
+  userId       String
+  exerciseId   String
+  targetWeight Float
+  targetReps   Int
+  achievedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, exerciseId])
+  @@index([userId])
 }

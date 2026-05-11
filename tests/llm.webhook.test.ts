@@ -81,6 +81,12 @@ vi.mock('../src/lib/prisma.js', () => ({
     processedMessage: {
       findUnique: async () => null,
       create: async ({ data }: any) => ({ id: newId(), processedAt: Date.now(), ...data })
+    },
+    goal: {
+      findUnique: async () => null,
+      findMany: async () => [],
+      upsert: async ({ create }: any) => ({ id: newId(), achievedAt: null, createdAt: new Date(), ...create }),
+      update: async ({ data }: any) => data
     }
   }
 }));

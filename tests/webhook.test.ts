@@ -128,6 +128,12 @@ vi.mock('../src/lib/prisma.js', () => {
           processedMessageStore.set(data.messageSid, record);
           return record;
         }
+      },
+      goal: {
+        findUnique: async () => null,
+        findMany: async () => [],
+        upsert: async ({ create }: any) => ({ id: newId(), achievedAt: null, createdAt: new Date(), ...create }),
+        update: async ({ data }: any) => data
       }
     }
   };

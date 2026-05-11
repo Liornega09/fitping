@@ -1,4 +1,5 @@
 import { suggestNextTarget } from './overload.js';
+import { detectPlateau } from './plateau.js';
 
 export type CatalogExercise = {
   canonicalName: string;
@@ -27,6 +28,7 @@ export type SuggestedExercise = {
   nextWeight?: number;
   nextReps?: number;
   rationale?: string;
+  plateau?: boolean;
 };
 
 export type Suggestion = {
@@ -103,12 +105,16 @@ export function suggestWorkout(input: SuggestInput): Suggestion | null {
 
   // Most recent log per canonical exercise
   const lastByExercise = new Map<string, RecentLogEntry>();
+  const allByExercise = new Map<string, RecentLogEntry[]>();
   for (const log of input.recentLogs) {
     if (log.primaryMuscle !== chosenMuscle) continue;
     const prev = lastByExercise.get(log.canonicalName);
     if (!prev || log.workoutDate > prev.workoutDate) {
       lastByExercise.set(log.canonicalName, log);
     }
+    const arr = allByExercise.get(log.canonicalName) ?? [];
+    arr.push(log);
+    allByExercise.set(log.canonicalName, arr);
   }
 
   const exercises: SuggestedExercise[] = muscleExercises.slice(0, max).map((ex) => {
@@ -117,6 +123,12 @@ export function suggestWorkout(input: SuggestInput): Suggestion | null {
       return { canonicalName: ex.canonicalName };
     }
     const next = suggestNextTarget({ weight: last.bestSet.weight, reps: [last.bestSet.reps] });
+    const allLogs = allByExercise.get(ex.canonicalName) ?? [];
+    const plateauResult = detectPlateau(
+      allLogs.map((l) => ({ weight: l.bestSet.weight, reps: [l.bestSet.reps], loggedAt: l.workoutDate })),
+      input.now,
+      2
+    );
     return {
       canonicalName: ex.canonicalName,
       lastWeight: last.bestSet.weight,
@@ -124,6 +136,7 @@ export function suggestWorkout(input: SuggestInput): Suggestion | null {
       nextWeight: next?.weight,
       nextReps: next?.reps,
       rationale: next?.rationale,
+      plateau: plateauResult !== null,
     };
   });
 
@@ -138,10 +151,11 @@ export function formatSuggestion(s: Suggestion, language: 'en' | 'he'): string {
         : `אימון מוצע — ${s.muscle} (אומן לפני ${s.daysSince} ימים)`;
     const lines = [header, ''];
     s.exercises.forEach((ex, i) => {
+      const plateauTag = ex.plateau ? ' [פלטו]' : '';
       if (ex.lastWeight != null && ex.lastReps != null && ex.nextWeight != null && ex.nextReps != null) {
-        lines.push(`${i + 1}. ${ex.canonicalName} — אחרון ${ex.lastWeight}ק"ג x ${ex.lastReps}. נסה ${ex.nextWeight}ק"ג x ${ex.nextReps}.`);
+        lines.push(`${i + 1}. ${ex.canonicalName}${plateauTag} — אחרון ${ex.lastWeight}ק"ג x ${ex.lastReps}. נסה ${ex.nextWeight}ק"ג x ${ex.nextReps}.`);
       } else if (ex.lastWeight != null && ex.lastReps != null) {
-        lines.push(`${i + 1}. ${ex.canonicalName} — אחרון ${ex.lastWeight}ק"ג x ${ex.lastReps}.`);
+        lines.push(`${i + 1}. ${ex.canonicalName}${plateauTag} — אחרון ${ex.lastWeight}ק"ג x ${ex.lastReps}.`);
       } else {
         lines.push(`${i + 1}. ${ex.canonicalName} — תרגיל חדש.`);
       }
@@ -155,10 +169,11 @@ export function formatSuggestion(s: Suggestion, language: 'en' | 'he'): string {
       : `Suggested workout — ${s.muscle} (last trained ${s.daysSince} days ago)`;
   const lines = [header, ''];
   s.exercises.forEach((ex, i) => {
+    const plateauTag = ex.plateau ? ' [plateau]' : '';
     if (ex.lastWeight != null && ex.lastReps != null && ex.nextWeight != null && ex.nextReps != null) {
-      lines.push(`${i + 1}. ${ex.canonicalName} — last ${ex.lastWeight}kg x ${ex.lastReps}. Try ${ex.nextWeight}kg x ${ex.nextReps}.`);
+      lines.push(`${i + 1}. ${ex.canonicalName}${plateauTag} — last ${ex.lastWeight}kg x ${ex.lastReps}. Try ${ex.nextWeight}kg x ${ex.nextReps}.`);
     } else if (ex.lastWeight != null && ex.lastReps != null) {
-      lines.push(`${i + 1}. ${ex.canonicalName} — last ${ex.lastWeight}kg x ${ex.lastReps}.`);
+      lines.push(`${i + 1}. ${ex.canonicalName}${plateauTag} — last ${ex.lastWeight}kg x ${ex.lastReps}.`);
     } else {
       lines.push(`${i + 1}. ${ex.canonicalName} — new exercise.`);
     }

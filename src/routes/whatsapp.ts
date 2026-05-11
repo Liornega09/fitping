@@ -10,6 +10,7 @@ import {
 import { formatSuggestion, suggestNextTarget } from '../domain/overload.js';
 import { suggestWorkout, formatSuggestion as formatWorkoutSuggestion, type RecentLogEntry } from '../domain/suggest.js';
 import { EXERCISE_SEEDS } from '../domain/catalog.js';
+import { detectPlateau, formatPlateauWarning } from '../domain/plateau.js';
 import { replies } from '../domain/replies.js';
 import { llmClassifierFromEnv, type LLMIntentClassifier } from '../lib/llm.js';
 import { prisma } from '../lib/prisma.js';
@@ -475,7 +476,7 @@ async function processMessage(
           exerciseId: resolved.exercise.id
         },
         orderBy: { loggedAt: 'desc' },
-        take: 5
+        take: 30
       });
 
       if (logs.length === 0) {
@@ -483,11 +484,20 @@ async function processMessage(
       }
 
       const lines = [t.progress_header(resolved.exercise.canonicalName)];
-      for (const log of logs) {
+      for (const log of logs.slice(0, 5)) {
         const reps = toRepsArray(log.reps);
         const bestReps = reps.length ? Math.max(...reps) : 0;
         const date = log.loggedAt.toISOString().slice(0, 10);
         lines.push(`${date}: ${log.weight}kg x ${bestReps}`);
+      }
+
+      const plateauResult = detectPlateau(
+        logs.map((l) => ({ weight: l.weight, reps: toRepsArray(l.reps), loggedAt: l.loggedAt })),
+        new Date()
+      );
+      if (plateauResult) {
+        lines.push('');
+        lines.push(formatPlateauWarning(plateauResult, intent.language));
       }
 
       return { reply: lines.join('\n') };
